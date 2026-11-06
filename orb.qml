@@ -50,10 +50,10 @@ Window {
             color: "white"
         }
         Text {
+            id: resultText
             anchors.horizontalCenter: parent.horizontalCenter
-            text: backend.user_data
-            font.pixelSize: 16
-            color: "white"
+            font.pixelSize: 12
+            color: '#94cdfc'
         }
         TextField {
             id: inputField
@@ -67,27 +67,18 @@ Window {
             Button {
                 text: "Send"
                 onClicked: {
-                    backend.user_data = inputField.text
                     inputField.text = ""
+                    resultText.text = backend.process_data(inputField.text)
                 }
+                palette.buttonText: "#000000"
             }
-            Button {
-                text: "Process"
-                onClicked: resultText.text = backend.process_data(inputField.text)
-            }
-        }
-        Text {
-            id: resultText
-            anchors.horizontalCenter: parent.horizontalCenter
-            color: "#9fd4ff"
         }
     }
 
     Connections {
         target: backend
-        function onStatusChanged(message) {
-            console.log("Notification from Python: " + message)
-        }
+        function onReplyReady(text) { resultText.text = text }
+        function onStatusChanged(message) { console.log("Notification from Python: " + message) }
     }
 
     Shortcut {
