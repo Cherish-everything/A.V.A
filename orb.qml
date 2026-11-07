@@ -57,16 +57,22 @@ Window {
             font.pixelSize: 15; font.bold: true
             color: "white"
             }
-            
+
             Text {
                 id: resultText
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: 170
+                height: 90
                 wrapMode: Text.Wrap
                 horizontalAlignment: Text.AlignHCenter
-                font.pixelSize: 12
+                verticalAlignment: Text.AlignVCenter
+                fontSizeMode: Text.Fit
+                minimumPixelSize: 9
+                font.pixelSize: 14
+                elide: Text.ElideRight
                 color: "#94cdfc"
             }
+
             TextField {
                 id: inputField
                 anchors.horizontalCenter: parent.horizontalCenter
