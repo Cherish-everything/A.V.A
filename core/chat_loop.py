@@ -19,19 +19,20 @@ def reply(user_prompt, history):
 
     for _ in range(6):
         msg = chat(messages, tools=schemas, tier=tier).choices[0].message
-        if not msg.tool_calls:
-            return msg.content
+    if not msg.tool_calls:
+        return msg.content or "(no reply)"
 
-        messages.append(msg)
-        for call in msg.tool_calls:
-            name = call.function.name
-            try:
-                args = json.loads(call.function.arguments or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            result = broker.call(name, args, CHAT_GRANT)
-            if name == "think_harder":
-                tier = "smart"
-            messages.append({"role": "tool", "tool_call_id": call.id,
-                             "name": name, "content": json.dumps(result, default=str)})
-        return "I got stuck in a loop, try rephrasing"
+    messages.append(msg)
+    for call in msg.tool_calls:
+        name = call.function.name
+        try:
+            args = json.loads(call.function.arguments or "{}")
+        except json.JSONDecodeError:
+            args = {}
+        result = broker.call(name, args, CHAT_GRANT)
+        if name == "think_harder":
+            tier = "smart"
+        messages.append({"role": "tool", "tool_call_id": call.id,
+                            "name": name, "content": json.dumps(result, default=str)})
+
+    return "I got stuck in a loop, try rephrasing."

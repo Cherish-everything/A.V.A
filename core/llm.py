@@ -7,7 +7,7 @@ _client = Groq(api_key=GROQ_API_KEY)
 MODELS = {
     "fast": "openai/gpt-oss-20b", # quick responses,triages
     "chat": "openai/gpt-oss-20b", #conversational and tool use
-    "smart": "qwen/qwen3.6-27b" #script writing
+    "smart": "qwen/qwen3.8-27b" #script writing
 }
 
 def chat(messages, tools=None, tier="chat", **kwargs):
