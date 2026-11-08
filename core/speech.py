@@ -14,10 +14,9 @@ from PyQt6.QtCore import QObject, QUrl, pyqtSignal
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 VOICE = "en-US-AvaMultilingualNeural"
-FIRST_CHUNK_MIN = 40     # first clip: just enough text to sound natural, so audio starts fast
-LATER_CHUNK_MIN = 150    # later clips are bigger, so there are fewer gaps
-
-
+FIRST_CHUNK_MIN = 40  
+LATER_CHUNK_MIN = 150
+        
 def _chunks(text):
     """Splits text into clips: a short first one, then longer ones."""
     sentences = [s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s]
@@ -28,7 +27,7 @@ def _chunks(text):
             chunks.append(current)
             current, minimum = "", LATER_CHUNK_MIN
     if current:
-        if chunks and len(current) < 25:        # don't leave a tiny trailing clip
+        if chunks and len(current) < 25:        # don't leave a trailing clip
             chunks[-1] += " " + current
         else:
             chunks.append(current)
@@ -45,14 +44,18 @@ class Speaker(QObject):
     _file_ready = pyqtSignal(str)       # worker thread -> main thread: a clip is ready to play
     textReady = pyqtSignal(str)         # fires when the audio for a reply starts (or if speech fails)
 
+    @property
+    def generation(self):
+        return self._generation
+
     def __init__(self):
         super().__init__()
         self._dir = tempfile.mkdtemp(prefix="ava_tts_")
-        self._pool = ThreadPoolExecutor(max_workers=3)   # chunks are generated in parallel
-        self._order_q = queue.Queue()                    # (generation, future, path), in speaking order
+        self._pool = ThreadPoolExecutor(max_workers=3)  
+        self._order_q = queue.Queue() 
         self._counter = itertools.count(1)
-        self._generation = 0                             # stop() bumps this so stale audio gets dropped
-        self._show = {}                                  # first clip's path -> text to display with it
+        self._generation = 0  
+        self._show = {}
         self._playlist = deque()
         self._busy = False
         self._current = None
@@ -66,9 +69,11 @@ class Speaker(QObject):
         threading.Thread(target=self._feeder, daemon=True).start()
 
     # ---------- public ----------
-    def speak(self, text, show_text=None):
-        """Queue text to be spoken. Safe from any thread, returns immediately.
-        show_text is emitted through textReady at the moment the audio starts."""
+    def speak(self, text, show_text=None, generation=None):
+        """Queue text to be spoken. If `generation` is given and out of date, the reply belongs
+        to a turn that was already interrupted, so it's ignored."""
+        if generation is not None and generation != self._generation:
+            return
         gen = self._generation
         chunks = _chunks(text)
         if not chunks:
@@ -81,8 +86,9 @@ class Speaker(QObject):
                 self._show[path] = show_text
             self._order_q.put((gen, self._pool.submit(_synth, chunk, path), path))
 
-    def stop(self):
-        """Cut off speech and clear everything queued. Call from the UI thread."""
+    def stop(self, flush_text=True):
+        """Cut off speech and clear everything queued. Call from the UI thread.
+        flush_text=False cuts the old reply's text instead of showing it, interrupting it."""
         self._generation += 1
         while True:
             try:
@@ -90,11 +96,20 @@ class Speaker(QObject):
             except queue.Empty:
                 break
             fut.cancel()
-        for text in list(self._show.values()):      # never lose a reply that hadn't been shown yet
-            self.textReady.emit(text)
+        if flush_text:
+            for text in list(self._show.values()):
+                self.textReady.emit(text)
         self._show.clear()
-        self._playlist.clear()
         self._player.stop()
+        self._player.setSource(QUrl()) # let the file be deleted
+        for path in [self._current, *self._playlist]:
+            if path:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+        self._playlist.clear()
+        self._current = None
         self._busy = False
 
     # ---------- worker thread: waits for chunks in speaking order ----------

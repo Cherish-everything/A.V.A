@@ -5,10 +5,11 @@ _client = Groq(api_key=GROQ_API_KEY)
 
 # Model options like model options in claude
 TIERS = {
-    "fast":  {"model": "openai/gpt-oss-20b", "temperature": 0.1,
-              "max_tokens": 256, "extra_body": {"reasoning_effort": "low"}},
-    "chat":  {"model": "openai/gpt-oss-20b", "temperature": 0.7},
-    "smart": {"model": "qwen/qwen3.8-27b",   "temperature": 0.6},
+    "fast":  {"model": "openai/gpt-oss-20b", "temperature": 0.1, "max_tokens": 256,
+              "extra_body": {"reasoning_effort": "low"}},
+    "chat":  {"model": "openai/gpt-oss-20b", "temperature": 0.7,
+              "extra_body": {"reasoning_effort": "low"}}, 
+    "smart": {"model": "qwen/qwen3.8-27b", "temperature": 0.6}
 }
 
 def chat(messages, tools=None, tier="chat", **kwargs):

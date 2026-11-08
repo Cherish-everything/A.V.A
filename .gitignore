@@ -1,3 +1,34 @@
+# secrets
 .env
+.env.*
+!.env.example
+credentials_*.json
+token_*.json
+client_secret*.json
+
+# personal data A.V.A. creates (memory, chat history, audit log, search index)
+logs/
+ava_vault/
+ava_memory_store/
+email_watch_state.json
+important_emails.md
+.last_brief_date.txt
+
+# virtual environments and caches
+env/
+venv/
+.venv/
 __pycache__/
 *.pyc
+.qmlcache/
+
+# build output from build_exe.py
+build/
+dist/
+*.spec
+
+# editor and generated files
+.vscode/
+.idea/
+*.mp3
+scan_*.png
