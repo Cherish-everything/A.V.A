@@ -7,7 +7,7 @@ import pyautogui
 from registry.registry import tool
 
 
-@tool(scope="media.spotify", risk="additive")
+@tool(scope="media.spotify", risk="additive", triggers=("play", "music", "song", "spotify", "listen", "put on", "queue"))
 def play_spotify(song_or_artist: str) -> dict:
     """Plays a song or artist on Spotify. Use when the user asks to play music."""
     url_safe_song = urllib.parse.quote(song_or_artist)

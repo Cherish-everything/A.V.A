@@ -12,19 +12,13 @@ class Tool:
     fn: Callable
     description: str
     scope: str
-    risk: str  # "read" | "additive" | "irreversible"
+    risk: str
+    triggers: tuple = ()
 
-
-def tool(scope, risk="read"):
-    """Decorator: registers a function as a tool."""
+def tool(scope, risk="read", triggers=()):
     def wrap(fn):
-        TOOLS[fn.__name__] = Tool(
-            name=fn.__name__,
-            fn=fn,
-            description=inspect.getdoc(fn) or "",
-            scope=scope,
-            risk=risk,
-        )
+        TOOLS[fn.__name__] = Tool(name=fn.__name__, fn=fn, description=inspect.getdoc(fn) or "",
+                                  scope=scope, risk=risk, triggers=tuple(triggers))
         return fn
     return wrap
 

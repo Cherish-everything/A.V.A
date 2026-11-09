@@ -6,7 +6,7 @@ from pathlib import Path
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import QQmlApplicationEngine
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
-from core import reply, Speaker, clean_reply, chat_log_write, memory_context, load_history, warm_up
+from core import reply, Speaker, clean_reply, chat_log_write, memory_context, load_history, warm_up, remember_from_conversation
 from tools import load_all_tools
 from core.llm import chat
 os.environ["QT_LOGGING_RULES"] = "qt.multimedia.ffmpeg*=false"
@@ -16,10 +16,6 @@ class BackendProcessor(QObject):
     """Bridge between the QML window and the A.V.A core."""
 
     replyReady = pyqtSignal(str)
-
-    @property
-    def generation(self):
-        return self._generation
 
     def __init__(self, speaker):
         super().__init__()
@@ -47,16 +43,18 @@ class BackendProcessor(QObject):
         self.history = (self.history + messages)[-20:]
 
     def _work(self, user_prompt, turn, speech_gen):
-        is_stale  = lambda: turn != self._turn
+        is_stale = lambda: turn != self._turn
+        threading.Thread(target=remember_from_conversation,
+                        args=(user_prompt, list(self.history[-4:])), daemon=True).start()
         with self._lock:
             if is_stale():
                 self._remember(user_prompt, None)
                 return
             try:
-                answer = reply(user_prompt, self.history, memory_text=memory_context(user_prompt), cancelled=is_stale) or "(no reply)"
+                answer = reply(user_prompt, self.history,
+                            memory_text=memory_context(user_prompt), cancelled=is_stale)
             except Exception as e:
                 answer = f"Error: {e}"
-
             self._remember(user_prompt, answer)
         if answer is not None and not is_stale():
             self.speaker.speak(answer, show_text=answer, generation=speech_gen)
