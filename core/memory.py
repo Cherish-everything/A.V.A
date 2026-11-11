@@ -67,6 +67,18 @@ def chat_log_read(limit=50):
             continue                      # skip a corrupt line instead of crashing
     return blocks
 
+def clean_chat_log():
+    """Clean the oldest 20 chat logs to prevent big cache files"""
+    with open(CHAT_HISTORY, 'r', encoding="utf-8") as f:
+        total = sum(1 for line in f)
+        print(total)
+    if total > 20:
+        with open(CHAT_HISTORY, 'r', encoding="utf-8") as f:
+            lines = f.readlines()
+        new_lines = lines[20:]
+        print(new_lines)
+        with open(CHAT_HISTORY, 'w', encoding="utf-8") as f:
+            f.writelines(new_lines)
 
 def load_history(turns=10):
     """Flat list of chat messages from the last `turns` saved blocks, ready for the LLM."""

@@ -33,59 +33,54 @@ def system_maintenance() -> str:
             return "Target platform architecture unrecognized by security layer."
             
     except Exception as e:
-        return f"Failed to route interface protocols: {str(e)}"
-
-def file_organize():
+        return f"Failed to route interface protocols: {str(e)}"\
+        
+@tool(scope="files.organize", risk="read")
+def file_organize(target_path: str = "") -> str:
     """
     Safely navigates the downloads folder and sorts files/folders:
     - Folders and .zip files go into a separate folder called 'Folders'.
     - Loose files are sorted into Recent/Older folders categorized by extension.
     """
-    raw_path = "C:\\Users\\Cherish\\Downloads\\test"
+    raw_path = r"C:\Users\Cherish\Downloads\test"
     path = Path(raw_path)
     
     if not path.exists():
-        print("Download folder not found")
-        return
+        print("Download not found")
+        return "Download folder not found."
 
     one_month_ago = time.time() - (30 * 24 * 60 * 60) # in seconds
     current_run_date = datetime.now().strftime("%m-%y")
     folders_dir_name = "Folders"
     
-    print("Scanning files...")
     moved = 0
 
     for item in path.iterdir():
-        # Skip the 'Folders' destination folder itself if it already exists
         if item.name == folders_dir_name:
             continue
 
         # Move folders and .zip into /Folders
         if item.is_dir() or item.suffix.lower() == ".zip" or item.name.startswith("."):
             target = path / folders_dir_name
-            target.mkdir(parents=True, exist_ok=True) # Ensure the Folders directory exists
+            target.mkdir(parents=True, exist_ok=True)
             dest = target / item.name
             
             try:
-                # Prevent trying to move a folder into itself
                 if item.resolve() == target.resolve():
                     continue
                 shutil.move(str(item), str(dest))
-                print(f"Moved archive/folder: {item.name}")
                 moved += 1
-            except Exception as e:
-                print(f"Couldn't move {item.name}: {e}")
-            
-            # CRITICAL: Skip the rest of the loop for this item so it doesn't process as a loose file
+            except Exception:
+                pass
             continue
 
-        # 2. Recent vs Older -> Categories
+        # Recent vs Older -> Categories
         try:
             file_mod_time = item.stat().st_mtime
             age_folder = f"Recent Files {current_run_date}" if file_mod_time > one_month_ago else f"Older Files {current_run_date}"
 
             file_ext = item.suffix.lower()
-            category_folder = "Others" # default
+            category_folder = "Others"
             for category, ext_list in EXTENSIONS.items():
                 if file_ext in ext_list:
                     category_folder = category
@@ -96,17 +91,14 @@ def file_organize():
 
             destination = target_dir / item.name
             if destination.exists():
-                # If a file with the same name exists, append a timestamp
                 destination = target_dir / f"{item.stem}_{int(file_mod_time)}{item.suffix}"
 
             shutil.move(str(item), str(destination))
             moved += 1
-            
-        except Exception as e:
-            print(f"Couldn't move file {item.name}: {e}")
+        except Exception:
+            pass
 
-    print(f"Successfully organized. Total items moved: {moved}")
-
+    return f"Successfully organized. Total items moved: {moved}"
 
 @tool(scope="app.launch", risk="read")
 def launch_system_application(app_name: str) -> str:
