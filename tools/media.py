@@ -1,11 +1,12 @@
 # tools/media.py
 import sys
+import os
 import subprocess
 import time
 import urllib.parse
 import pyautogui
 from registry.registry import tool
-
+from core import LOG_DIR
 
 @tool(scope="media.spotify", risk="additive", triggers=("play", "music", "song", "spotify", "listen", "put on", "queue"))
 def play_spotify(song_or_artist: str) -> dict:
