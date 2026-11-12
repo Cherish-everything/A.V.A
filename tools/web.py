@@ -40,7 +40,7 @@ import requests
 from registry.registry import tool
 
 
-@tool(scope="weather.read", risk="read")
+@tool(scope="weather.read", risk="read", triggers=("weather", "rain", "going out", "should I", "umbrella", "go out", "head out", "should"))
 def get_weather_forecast(location: str = "Singapore", days: int = 1, include_temps: bool = False) -> dict:
     """Weather forecast. location is a city name, default Singapore. days is 1 to 3.
     By default returns only the basic outlook (condition and chance of rain).
