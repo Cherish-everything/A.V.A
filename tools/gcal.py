@@ -1,24 +1,25 @@
 import re
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from googleapiclient.discovery import build
 
-from core.timeutil import (combine_local, day_bounds, day_summary, parse_clock, parse_iso_local,
-                           resolve_date_string)
+from core.timeutil import (combine, daypart, day_bounds, day_summary, parse_clock, parse_iso_local,
+                           resolve_date_string, resolve_zone, utc_label)
 from registry.permission import get_google_services      # (kept as in your project)
 from registry.registry import tool
 
 ACCOUNTS = ("personal", "business")
-DAY_START, DAY_END = "08:00", "22:00"
+DAY_START, DAY_END = "08:00", "22:00"                     # the window used to look for free time
 
 
-def _tool(scope, risk, triggers=()):
-    """@tool, tolerant of a registry that doesn't know `triggers` yet."""
-    try:
-        return tool(scope=scope, risk=risk, triggers=triggers)
-    except TypeError:
-        return tool(scope=scope, risk=risk)
+def _tool(scope, risk, triggers=(), topic=""):
+    """@tool, tolerant of a registry that doesn't know `triggers` / `topic` yet (it just sends the tool always)."""
+    for extra in ({"triggers": triggers, "topic": topic}, {"triggers": triggers}, {}):
+        try:
+            return tool(scope=scope, risk=risk, **extra)
+        except TypeError:
+            continue
 
 
 # =====================================================================
@@ -75,13 +76,14 @@ def get_active_tasks(target_date=None, account_type="personal") -> list:
     return [t for t in items if (t.get("due") or "")[:10] == day.isoformat()]
 
 
-@_tool(scope="calendar.read", risk="read")
+@_tool(scope="calendar.read", risk="read", topic="calendar")
 def get_agenda_for_date(date_query: str = "today", from_time: str = DAY_START, to_time: str = DAY_END) -> dict:
     """What's on and when the user is FREE on one day, across both their calendars, plus tasks due that day.
     date_query is the user's own words ("tomorrow", "next tuesday", "20 nov") or an ISO date: the code works
     out the date, so never calculate it yourself. Use for "am I free...", "what's on...", "what's my day like".
     Free windows are looked for between from_time and to_time (default 08:00 to 22:00); narrow them for
-    questions like "am I free tuesday afternoon" (from_time="12:00", to_time="18:00")."""
+    questions like "am I free tuesday afternoon" (from_time="12:00", to_time="18:00"). Times are the user's
+    local time. For one specific time, or a time in another timezone, use check_availability instead."""
     day = resolve_date_string(date_query)
     if day is None:
         return {"error": f"I couldn't understand the date '{date_query}'. Ask the user which day they mean."}
@@ -106,7 +108,7 @@ def get_agenda_for_date(date_query: str = "today", from_time: str = DAY_START, t
 
     events, seen = [], set()
     for _, account_events, _, _ in results:
-        for e in account_events:                                         # an event on both calendars counts once
+        for e in account_events:  
             key = (e.get("summary"), (e.get("start") or {}).get("dateTime") or (e.get("start") or {}).get("date"))
             if key not in seen:
                 seen.add(key)
@@ -120,7 +122,7 @@ def get_agenda_for_date(date_query: str = "today", from_time: str = DAY_START, t
     return out
 
 
-@_tool(scope="tasks.read", risk="read")
+@_tool(scope="tasks.read", risk="read", topic="tasks")
 def view_active_tasks(due: str = "", account_type: str = "any") -> dict:
     """The user's open tasks, soonest due first. Put a day in `due` (words or ISO date) to see only the
     tasks due then; leave it empty for all open tasks."""
@@ -149,51 +151,126 @@ def view_active_tasks(due: str = "", account_type: str = "any") -> dict:
 # =====================================================================
 # Changing things (additive only: nothing here deletes or overwrites)
 # =====================================================================
-def _when(day_text, start, end):
-    """Words + clock times (or full ISO datetimes) -> (start, end) as local datetimes. Raises ValueError."""
+def _when(day_text, start, end, tz_name=""):
+    """Words + clock times (or full ISO datetimes) -> (start, end) as aware datetimes in the laptop's timezone.
+    If tz_name is given ("New York", "PST", "UTC+9"), the day and clock times are read in THAT zone and converted.
+    Raises ValueError with a message that is safe to show the user."""
     start, end = (start or "").strip(), (end or "").strip()
+    zone = None
+    if (tz_name or "").strip():
+        zone = resolve_zone(tz_name)
+        if zone is None:
+            raise ValueError(f"I don't recognise the timezone '{tz_name}'. Ask the user for a city, like New York or Tokyo.")
     iso = r"\d{4}-\d{2}-\d{2}[T ].*"
     if not start:
         raise ValueError("I need a start time.")
     if re.fullmatch(iso, start):
-        s = parse_iso_local(start)
+        s = parse_iso_local(start, default_zone=zone)
     else:
-        day = resolve_date_string(day_text)
+        base = datetime.now(zone).date() if zone else None             # "tomorrow" means tomorrow THERE
+        day = resolve_date_string(day_text, base)
         if day is None:
             raise ValueError(f"I couldn't understand the date '{day_text}'.")
         clock = parse_clock(start)
         if clock is None:
             raise ValueError(f"I couldn't understand the start time '{start}'.")
-        s = combine_local(day, clock)
+        s = combine(zone, day, clock)
 
     if not end:
         e = s + timedelta(hours=1)
     elif re.fullmatch(iso, end):
-        e = parse_iso_local(end)
+        e = parse_iso_local(end, default_zone=zone)
     else:
         clock = parse_clock(end)
         if clock is None:
             raise ValueError(f"I couldn't understand the end time '{end}'.")
-        e = combine_local(s.date(), clock)
+        e = combine(zone, (s.astimezone(zone) if zone else s).date(), clock)
     if e <= s:
         e = s + timedelta(hours=1)
     return s, e
 
 
-@_tool(scope="calendar.create", risk="additive",
+def _describe(s, e, tz_name):
+    """The slot in the user's own time, plus how it was originally asked when a timezone was involved."""
+    out = {"your_time": f"{s:%A} {s.day} {s:%B}, {s:%H:%M}-{e:%H:%M} ({utc_label(s)})"}
+    zone = resolve_zone(tz_name) if (tz_name or "").strip() else None
+    if zone is not None:
+        sz, ez = s.astimezone(zone), e.astimezone(zone)
+        out["asked_as"] = f"{sz:%A} {sz.day} {sz:%B}, {sz:%H:%M}-{ez:%H:%M} {tz_name.strip()} time"
+    if s.hour < 6 or s.hour >= 23:
+        out["note"] = f"That is {daypart(s.hour)} for the user."
+    return out
+
+
+@_tool(scope="calendar.read", risk="read", topic="calendar")
+def check_availability(day: str = "today", start: str = "", end: str = "", timezone: str = "") -> dict:
+    """Is the user free at a SPECIFIC time? Use for "am I free at 3pm tomorrow", "can I do 9am new york time
+    on friday". day is the user's words or an ISO date; start and end are clock times like "9am" or "15:00"
+    (end defaults to one hour after start). If the user quotes another timezone ("New York", "PST", "London",
+    "UTC+9") put it in timezone: the code converts it to the user's own timezone before checking. Without
+    timezone, the times are the user's local time. Checks both calendars."""
+    try:
+        s, e = _when(day, start, end, timezone)
+    except ValueError as err:
+        return {"error": str(err)}
+
+    def fetch(account):
+        try:
+            items = _service("calendar", "v3", account).events().list(
+                calendarId="primary", timeMin=s.isoformat(), timeMax=e.isoformat(),
+                singleEvents=True, maxResults=20).execute().get("items", [])
+            return [x for x in items if _usable(x)], None
+        except Exception as err:
+            return [], f"{account}: {err}"
+
+    with ThreadPoolExecutor(max_workers=len(ACCOUNTS)) as pool:
+        results = list(pool.map(fetch, ACCOUNTS))
+    errors = [r[1] for r in results if r[1]]
+    if len(errors) == len(ACCOUNTS):
+        return {"error": "Couldn't reach Google Calendar. " + "; ".join(errors)}
+
+    conflicts, seen = [], set()
+    for items, _ in results:
+        for ev in items:
+            st, en = (ev.get("start") or {}).get("dateTime"), (ev.get("end") or {}).get("dateTime")
+            if not st or ev.get("transparency") == "transparent":         # all-day and "free" events don't block
+                continue
+            a, b = parse_iso_local(st), parse_iso_local(en or st)
+            if a < e and b > s and (ev.get("summary"), st) not in seen:
+                seen.add((ev.get("summary"), st))
+                conflicts.append({"event": ev.get("summary", "Untitled"), "from": f"{a:%H:%M}", "to": f"{b:%H:%M}"})
+
+    out = {"free": not conflicts, **_describe(s, e, timezone)}
+    if conflicts:
+        out["conflicts"] = conflicts
+        minutes = max(int((e - s).total_seconds() // 60), 15)
+        day_events = []
+        for account in ACCOUNTS:                                           # offer alternatives that same day
+            try:
+                day_events += get_calendar_events_for_date(s.date(), account)
+            except Exception:
+                pass
+        out["free_windows_that_day"] = day_summary(day_events, s.date(), min_minutes=minutes)["free"][:4]
+    if errors:
+        out["warning"] = "Couldn't read: " + "; ".join(errors) + ". Say the answer may be incomplete."
+    return out
+
+
+@_tool(scope="calendar.create", risk="additive", topic="calendar",
        triggers=("schedule", "calendar", "meeting", "event", "book", "appointment", "remind", "add", "put",
                  "block", "set up", "plan", "invite"))
 def create_google_calendar_event(title: str, day: str = "today", start: str = "", end: str = "",
-                                 notes: str = "", account_type: str = "personal") -> dict:
+                                 notes: str = "", account_type: str = "personal", timezone: str = "") -> dict:
     """Add an event to the user's calendar. day is their words ("tomorrow", "next tuesday", "20 nov") or an
     ISO date; start and end are clock times like "15:00" or "3pm" (end is optional and defaults to one hour
     after start). You may instead put a full ISO datetime in start. account_type is "personal" or "business"
-    (use "business" for work). Reports if the time overlaps something and skips exact duplicates."""
+    (use "business" for work). Only if the user quotes another timezone ("9am New York time") put it in
+    timezone and the code converts it. Reports if the time overlaps something and skips exact duplicates."""
     account = (account_type or "personal").strip().lower()
     if account not in ACCOUNTS:
         return {"error": f"account_type must be one of {', '.join(ACCOUNTS)}."}
     try:
-        s, e = _when(day, start, end)
+        s, e = _when(day, start, end, timezone)
     except ValueError as err:
         return {"error": str(err)}
 
@@ -216,20 +293,20 @@ def create_google_calendar_event(title: str, day: str = "today", start: str = ""
         description = "Generated automatically by A.V.A"
         body = {"summary": title,
                 "description": f"{notes.strip()}\n\n{description}" if notes.strip() else description,
-                "start": {"dateTime": s.isoformat()},                    # carries the offset, so no timeZone needed
+                "start": {"dateTime": s.isoformat()},
                 "end": {"dateTime": e.isoformat()}}
         created = service.events().insert(calendarId="primary", body=body).execute()
     except Exception as err:
         return {"error": f"Couldn't create the event: {err}"}
 
     out = {"ok": True, "created": title, "when": f"{s:%A} {s.day} {s:%B}, {s:%H:%M}-{e:%H:%M}",
-           "link": created.get("htmlLink")}
+           "link": created.get("htmlLink"), **{k: v for k, v in _describe(s, e, timezone).items() if k != "your_time"}}
     if overlaps:
         out["overlaps_with"] = overlaps
     return out
 
 
-@_tool(scope="tasks.create", risk="additive",
+@_tool(scope="tasks.create", risk="additive", topic="tasks",
        triggers=("task", "todo", "to-do", "remind", "reminder", "add", "note", "don't forget", "dont forget"))
 def add_google_task(title: str, due: str = "", notes: str = "", account_type: str = "personal") -> dict:
     """Add a task to the user's to-do list. due is optional: their words ("friday", "20 nov") or an ISO date.
@@ -254,7 +331,7 @@ def add_google_task(title: str, due: str = "", notes: str = "", account_type: st
     return {"ok": True, "added": result.get("title", body["title"]), "due": (body.get("due") or "")[:10] or None}
 
 
-@_tool(scope="tasks.complete", risk="additive",
+@_tool(scope="tasks.complete", risk="additive", topic="tasks",
        triggers=("done", "finished", "finish", "complete", "completed", "tick off", "check off", "cross off", "mark"))
 def complete_google_task(task: str, account_type: str = "any") -> dict:
     """Mark ONE open task as done. task is some words from its title. If several tasks match, it returns the
