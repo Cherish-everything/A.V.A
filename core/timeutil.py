@@ -135,8 +135,11 @@ def resolve_date_string(date_input=None, base=None):
         return date_input
 
     s = str(date_input or "").strip().lower()
-    if not s in ("today", "now", "tonight", "this afternoon", "this evening"):
+    if not s:
         return base
+    if s in ("today", "now", "tonight", "this afternoon", "this evening"):
+        return base
+    
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
         try:
             return date.fromisoformat(s)

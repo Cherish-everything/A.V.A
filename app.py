@@ -9,6 +9,7 @@ from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
 from core import reply, Speaker, clean_reply, chat_log_write, memory_context, load_history, warm_up, remember_from_conversation
 from tools import load_all_tools
 from core.llm import chat
+from core.memory import clean_chat_log
 os.environ["QT_LOGGING_RULES"] = "qt.multimedia.ffmpeg*=false"
 
 
@@ -62,7 +63,8 @@ class BackendProcessor(QObject):
 
 if __name__ == "__main__":
     load_all_tools()          
-    threading.Thread(target=warm_up, daemon=True).start()                      
+    threading.Thread(target=warm_up, daemon=True).start()   
+    threading.Thread(target=clean_chat_log, daemon=True).start()                   
     app = QGuiApplication(sys.argv)
     speaker = Speaker()
     backend = BackendProcessor(speaker)

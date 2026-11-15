@@ -15,10 +15,7 @@ TIERS = {
     # quick jobs (is this email important? extract a memory fact): small and fast
     "fast": {"provider": "groq", "model": "openai/gpt-oss-20b", "temperature": 0.1, "max_tokens": 256,
              "extra_body": {"reasoning_effort": "low"}},
-    # everyday chat and tool calls: Nemotron with thinking OFF 
-    "chat": {"provider": "nvidia", "model": NEMOTRON, "temperature": 0.6, "top_p": 0.95,
-             "extra_body": {"chat_template_kwargs": {"enable_thinking": False}},
-             "fallback": _GROQ_CHAT},
+    "chat": {"provider": "groq", "model": "openai/gpt-oss-20b", "temperature": 0.7, "max_tokens": 512},
     # hard problems and scripts: Nemotron with thinking ON (give it room: reasoning tokens count against max_tokens)
     "smart": {"provider": "nvidia", "model": NEMOTRON, "temperature": 0.6, "top_p": 0.95, "max_tokens": 8192,
               "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},

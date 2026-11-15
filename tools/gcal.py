@@ -1,6 +1,6 @@
 import re
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from googleapiclient.discovery import build
 
@@ -39,7 +39,10 @@ def _usable(event):
     """Cancelled events and ones the user declined don't make them busy."""
     if event.get("status") == "cancelled":
         return False
+    if (event.get("summary") or "").upper().startswith("[CANCELLED]"):
+        return False
     return not any(a.get("self") and a.get("responseStatus") == "declined" for a in event.get("attendees", []))
+
 
 
 def _clock_or_default(text, default):
@@ -53,6 +56,7 @@ def _clock_or_default(text, default):
 def get_calendar_events_for_date(target_date, account_type="personal") -> list:
     """Events for one local day (target_date may be a date, an ISO string or words like 'next tuesday').
     Raises if Google can't be reached: returning [] instead would make a failed lookup look like a free day."""
+    print(target_date)
     day = resolve_date_string(target_date)
     if day is None:
         raise ValueError(f"unreadable date: {target_date!r}")
@@ -68,7 +72,7 @@ def get_active_tasks(target_date=None, account_type="personal") -> list:
     """Open tasks. With a date, only the ones due that day; with None, all of them.
     Google stores a due date as a plain date at midnight UTC, so the date part is compared directly:
     converting it between timezones could shift it to the wrong day."""
-    day = resolve_date_string(target_date) if target_date else None
+    day = (target_date if isinstance(target_date, date) else resolve_date_string(target_date)) if target_date else None
     items = _service("tasks", "v1", account_type).tasks().list(
         tasklist="@default", maxResults=100, showCompleted=False).execute().get("items", [])
     if day is None:
@@ -85,6 +89,7 @@ def get_agenda_for_date(date_query: str = "today", from_time: str = DAY_START, t
     questions like "am I free tuesday afternoon" (from_time="12:00", to_time="18:00"). Times are the user's
     local time. For one specific time, or a time in another timezone, use check_availability instead."""
     day = resolve_date_string(date_query)
+    print(date_query)
     if day is None:
         return {"error": f"I couldn't understand the date '{date_query}'. Ask the user which day they mean."}
 
@@ -305,6 +310,64 @@ def create_google_calendar_event(title: str, day: str = "today", start: str = ""
         out["overlaps_with"] = overlaps
     return out
 
+@_tool(scope="calendar.update", risk="additive", topic="calendar",
+       triggers=("cancel", "call off", "postpone", "drop", "scrap", "remove event", "delete event"))
+def cancel_google_calendar_event(event_query: str, day: str = "today", account_type: str = "any") -> dict:
+    """Marks an existing calendar event as [CANCELLED] and frees up the time slot without deleting it.
+    event_query is words from the event's title. day is the user's words ('today', 'tomorrow', 'friday')
+    or an ISO date."""
+    target = (event_query or "").strip().lower()
+    if not target:
+        return {"error": "Which event should I cancel?"}
+
+    resolved_day = resolve_date_string(day)
+    if resolved_day is None:
+        return {"error": f"I couldn't understand the date '{day}'."}
+
+    matches, errors = [], []
+    for account in _accounts(account_type):
+        try:
+            for ev in get_calendar_events_for_date(resolved_day, account):
+                title = ev.get("summary") or ""
+                if target in title.lower() and not title.upper().startswith("[CANCELLED]"):
+                    matches.append((account, ev))
+        except Exception as err:
+            errors.append(f"{account}: {err}")
+
+    exact = [m for m in matches if (m[1].get("summary") or "").strip().lower() == target]
+    if len(exact) == 1:
+        matches = exact
+    if len(matches) > 1:
+        return {
+            "ambiguous": [m[1].get("summary") for m in matches[:6]],
+            "note": "Multiple events match. Ask the user which one to cancel."
+        }
+    if not matches:
+        out = {"error": f"No active event matching '{event_query}' found on {resolved_day:%A %d %B}."}
+        if errors:
+            out["warning"] = "Couldn't read: " + "; ".join(errors)
+        return out
+
+    account, ev = matches[0]
+    new_title = f"[CANCELLED] {ev.get('summary', 'Untitled')}"
+    try:
+        updated = _service("calendar", "v3", account).events().patch(
+            calendarId="primary",
+            eventId=ev["id"],
+            body={
+                "summary": new_title,
+                "transparency": "transparent",  # Marks the slot as Free so AVA ignores it for conflicts
+            }
+        ).execute()
+    except Exception as err:
+        return {"error": f"Couldn't update the event: {err}"}
+
+    return {
+        "ok": True,
+        "cancelled": updated.get("summary"),
+        "date": f"{resolved_day:%A} {resolved_day.day} {resolved_day:%B}",
+        "account": account,
+    }
 
 @_tool(scope="tasks.create", risk="additive", topic="tasks",
        triggers=("task", "todo", "to-do", "remind", "reminder", "add", "note", "don't forget", "dont forget"))

@@ -68,15 +68,15 @@ def chat_log_read(limit=50):
     return blocks
 
 def clean_chat_log():
-    """Clean the oldest 20 chat logs to prevent big cache files"""
+    """Clean the oldest 10 chat logs to prevent big cache files"""
     with open(CHAT_HISTORY, 'r', encoding="utf-8") as f:
         total = sum(1 for line in f)
         print(total)
-    if total > 20:
+    if total > 1:
         with open(CHAT_HISTORY, 'r', encoding="utf-8") as f:
             lines = f.readlines()
-        new_lines = lines[20:]
-        print(new_lines)
+        new_lines = lines[10:]
+        print("Chat log cleared.")
         with open(CHAT_HISTORY, 'w', encoding="utf-8") as f:
             f.writelines(new_lines)
 

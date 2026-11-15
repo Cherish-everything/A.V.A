@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<!-- ADD NEWS EXCERPTS AND STATISTICS -->
+<html>
+    <head>
+        <style>
+            body {
+                font-family: 'Georgia', serif;
+                background-color: #f4f1ea;
+                color: #2c2c2c;
+                width: 600px;
+                padding: 40px;
+                margin: 0;
+            }
+            .newspaper-header {
+                text-align: center;
+                border-bottom: 3px double #2c2c2c;
+                border-top: 2px solid #2c2c2c;
+                padding: 15px 0;
+                margin-bottom: 25px;
+            }
+            .newspaper-header h1 {
+                font-size: 36px;
+                margin: 0;
+                letter-spacing: 2px;
+                text-transform: uppercase;
+            }
+            .newspaper-header p {
+                font-style: italic;
+                margin: 5px 0 0 0;
+                font-size: 14px;
+            }
+            .section-title {
+                font-family: 'Arial', sans-serif;
+                font-size: 14px;
+                text-transform: uppercase;
+                border-bottom: 1px solid #2c2c2c;
+                padding-bottom: 4px;
+                margin-top: 20px;
+                letter-spacing: 1px;
+            }
+            ul {
+                padding-left: 20px;
+            }
+            li {
+                margin-bottom: 8px;
+                font-size: 15px;
+            }
+            .footer {
+                text-align: center;
+                font-size: 12px;
+                margin-top: 30px;
+                border-top: 1px solid #2c2c2c;
+                padding-top: 10px;
+                font-family: 'Arial', sans-serif;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="newspaper-header">
+            <h1>The Daily Chronicle</h1>
+            <p>{{date_string}} - {{user}}'s Briefing</p>
+        </div>
+
+        <div class="section-title">Today's Agenda</div>
+        <ul>
+            {% for event in events %}
+            <li><strong>{{event.start}} - {{event.end}}</strong>: {{event.summary}} </li>
+            {% else %}
+            <li><em>No scheduled events today.</em></li>
+            {% endfor %}
+        </ul>
+
+        <div class="section-title">Priority Tasks due</div>
+        <ul>
+            {% for task in tasks_due %}
+            <li>{{task}}</li>
+            {% else %}
+            <li><em>No task due today. You're all caught up.</em></li>
+            {% endfor %}
+        </ul>
+        <div class="footer">System Status: Online | A.V.A v2.0</div>
+    </body> 
+</html>
