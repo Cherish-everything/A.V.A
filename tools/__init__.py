@@ -1,4 +1,6 @@
 # tools/__init__.py
+from .briefing import generate_image
+from .gcal import get_agenda_for_date
 import importlib
 import pkgutil
 

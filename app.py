@@ -7,12 +7,40 @@ from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import QQmlApplicationEngine
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
 from core import reply, Speaker, clean_reply, chat_log_write, memory_context, load_history, warm_up, remember_from_conversation
-from tools import load_all_tools
+from tools import load_all_tools, generate_image, get_agenda_for_date
 from core.llm import chat
 from core.memory import clean_chat_log
+from core.config import LOG_DIR
+from core.timeutil import today
 os.environ["QT_LOGGING_RULES"] = "qt.multimedia.ffmpeg*=false"
 
+def _morning_brief() -> str:
+        log = Path(LOG_DIR)
+        filename = "morning_chronicle.txt"
+        pathfile = log / filename
 
+        log.mkdir(parents=True, exist_ok=True)
+        pathfile.touch(exist_ok=True)
+
+        with open(pathfile, 'r', encoding="utf-8") as f:
+            last_log = f.read()
+
+        today_str = str(today())
+
+        if today_str in last_log:
+            print("already exist")
+            return "Morning briefing already deployed."
+        else:
+            threading.Thread(
+                target=lambda: generate_image(get_agenda_for_date("today")), 
+                daemon=True
+            ).start()  
+            
+            with open(pathfile, 'w', encoding="utf-8") as f:
+                f.write(today_str) 
+                
+            return f"Briefing sent for {today_str}."
+        
 class BackendProcessor(QObject):
     """Bridge between the QML window and the A.V.A core."""
 
@@ -64,7 +92,8 @@ class BackendProcessor(QObject):
 if __name__ == "__main__":
     load_all_tools()          
     threading.Thread(target=warm_up, daemon=True).start()   
-    threading.Thread(target=clean_chat_log, daemon=True).start()                   
+    threading.Thread(target=clean_chat_log, daemon=True).start() 
+    _morning_brief()                  
     app = QGuiApplication(sys.argv)
     speaker = Speaker()
     backend = BackendProcessor(speaker)

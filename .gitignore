@@ -19,6 +19,7 @@ env/
 venv/
 .venv/
 __pycache__/
+/__pychace__/
 *.pyc
 .qmlcache/
 

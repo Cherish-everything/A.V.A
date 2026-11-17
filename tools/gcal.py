@@ -39,7 +39,11 @@ def _usable(event):
     """Cancelled events and ones the user declined don't make them busy."""
     if event.get("status") == "cancelled":
         return False
-    if (event.get("summary") or "").upper().startswith("[CANCELLED]"):
+
+    summary = event.get("summary" or "").strip().lower()
+    if summary in ("breakfast", "lunch", "dinner"):
+        return False
+    if summary.startswith("[CANCELLED]"):
         return False
     return not any(a.get("self") and a.get("responseStatus") == "declined" for a in event.get("attendees", []))
 
