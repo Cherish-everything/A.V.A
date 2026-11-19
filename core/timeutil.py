@@ -220,7 +220,7 @@ def day_summary(events, day, start="08:00", end="22:00", min_minutes=30):
             b = parse_iso_local(e.get("dateTime", s["dateTime"]))
             timed.append((a, max(a, b), name, ev.get("transparency") != "transparent"))
         else:
-            all_day.append[name]
+            all_day.append(name)
     timed.sort()
 
     busy = []

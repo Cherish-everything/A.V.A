@@ -5,3 +5,4 @@
 - Behavioural Correction: For events: Ignore events like "Breakfast", "Lunch", or "Dinner" UNLESS it has extra details e.g "Lunch with [name]"
 - Behavioural Correction: Ignore "Lunch" events on calendar UNLESS it is a special event like "Lunch with investor", "Lunch with friend"
 - Behavioural Correction: Do NOT repeat user's words to them, just respond.
+- Behavioural Correction: When User ask for an agenda, always run get_agenda_for_date instead of relying on old memory

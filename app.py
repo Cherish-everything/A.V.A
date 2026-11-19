@@ -6,40 +6,43 @@ from pathlib import Path
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import QQmlApplicationEngine
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
-from core import reply, Speaker, clean_reply, chat_log_write, memory_context, load_history, warm_up, remember_from_conversation
-from tools import load_all_tools, generate_image, get_agenda_for_date
+from core import reply, Speaker, chat_log_write, memory_context, load_history, warm_up, remember_from_conversation
+from tools import load_all_tools, generate_image, get_agenda_for_date, push_briefing_to_telegram, start_telegram
 from core.llm import chat
 from core.memory import clean_chat_log
 from core.config import LOG_DIR
 from core.timeutil import today
 os.environ["QT_LOGGING_RULES"] = "qt.multimedia.ffmpeg*=false"
 
+def _run_and_send_brief(pathfile: Path, today_str: str):
+    image_path = generate_image(get_agenda_for_date("today"))
+    push_briefing_to_telegram(image_path)
+    
+    with open(pathfile, 'w', encoding="utf-8") as f:
+        f.write(today_str)
+
 def _morning_brief() -> str:
-        log = Path(LOG_DIR)
-        filename = "morning_chronicle.txt"
-        pathfile = log / filename
+    log = Path(LOG_DIR)
+    pathfile = log / "morning_chronicle.txt"
 
-        log.mkdir(parents=True, exist_ok=True)
-        pathfile.touch(exist_ok=True)
+    log.mkdir(parents=True, exist_ok=True)
+    pathfile.touch(exist_ok=True)
 
-        with open(pathfile, 'r', encoding="utf-8") as f:
-            last_log = f.read()
+    with open(pathfile, 'r', encoding="utf-8") as f:
+        last_log = f.read()
 
-        today_str = str(today())
+    today_str = str(today())
 
-        if today_str in last_log:
-            print("already exist")
-            return "Morning briefing already deployed."
-        else:
-            threading.Thread(
-                target=lambda: generate_image(get_agenda_for_date("today")), 
-                daemon=True
-            ).start()  
-            
-            with open(pathfile, 'w', encoding="utf-8") as f:
-                f.write(today_str) 
-                
-            return f"Briefing sent for {today_str}."
+    if today_str in last_log:
+        print("already exist")
+        return "Morning briefing already deployed."
+    else:
+        threading.Thread(
+            target=_run_and_send_brief, 
+            args=(pathfile, today_str), 
+            daemon=True
+        ).start()
+        return f"Deploying briefing for {today_str}..."
         
 class BackendProcessor(QObject):
     """Bridge between the QML window and the A.V.A core."""
@@ -93,7 +96,8 @@ if __name__ == "__main__":
     load_all_tools()          
     threading.Thread(target=warm_up, daemon=True).start()   
     threading.Thread(target=clean_chat_log, daemon=True).start() 
-    _morning_brief()                  
+    threading.Thread(target=start_telegram, daemon=True).start()
+    threading.Thread(target=_morning_brief, daemon=True).start()               
     app = QGuiApplication(sys.argv)
     speaker = Speaker()
     backend = BackendProcessor(speaker)

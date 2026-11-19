@@ -8,6 +8,8 @@ NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
 OBSIDIAN_VAULT_PATH = os.environ.get("OBSIDIAN_VAULT_PATH")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)

@@ -1,4 +1,4 @@
-from tools import get_agenda_for_date, generate_image
+from tools.telegram import start
 
 if __name__ == "__main__":
-    generate_image(get_agenda_for_date("today"))
+    start()
