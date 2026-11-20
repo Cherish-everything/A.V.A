@@ -5,7 +5,7 @@ import re
 import threading
 import time
 from collections import deque
-
+from pathlib import Path
 import chromadb
 from chromadb.config import Settings
 
@@ -67,18 +67,30 @@ def chat_log_read(limit=50):
             continue                      # skip a corrupt line instead of crashing
     return blocks
 
-def clean_chat_log():
-    """Clean the oldest 10 chat logs to prevent big cache files"""
-    with open(CHAT_HISTORY, 'r', encoding="utf-8") as f:
-        total = sum(1 for line in f)
-        print(total)
-    if total > 1:
-        with open(CHAT_HISTORY, 'r', encoding="utf-8") as f:
-            lines = f.readlines()
-        new_lines = lines[10:]
-        print("Chat log cleared.")
-        with open(CHAT_HISTORY, 'w', encoding="utf-8") as f:
-            f.writelines(new_lines)
+chat_log_lock = threading.Lock()
+
+def clean_chat_log(interval_seconds: int=300, max_lines: int=15):
+    """Continuously checks and trims the oldest 10 chat logs in the background."""
+    path = Path(CHAT_HISTORY)
+    
+    while True:
+        time.sleep(interval_seconds)  # Wait 5 minutes (300s) between checks
+        
+        if not path.is_file():
+            continue
+
+        try:
+            with chat_log_lock:
+                with open(path, 'r', encoding="utf-8") as f:
+                    lines = f.readlines()
+
+                if len(lines) > max_lines:
+                    new_lines = lines[10:]
+                    with open(path, 'w', encoding="utf-8") as f:
+                        f.writelines(new_lines)
+                    print(f"Chat log trimmed ({len(lines)} -> {len(new_lines)} lines).")
+        except Exception as e:
+            print(f"Error cleaning chat log: {e}")
 
 def load_history(turns=10):
     """Flat list of chat messages from the last `turns` saved blocks, ready for the LLM."""

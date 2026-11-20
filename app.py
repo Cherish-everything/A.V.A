@@ -7,11 +7,9 @@ from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import QQmlApplicationEngine
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
 from core import reply, Speaker, chat_log_write, memory_context, load_history, warm_up, remember_from_conversation
+from core import clean_chat_log, chat, today, LOG_DIR
 from tools import load_all_tools, generate_image, get_agenda_for_date, push_briefing_to_telegram, start_telegram
-from core.llm import chat
-from core.memory import clean_chat_log
-from core.config import LOG_DIR
-from core.timeutil import today
+
 os.environ["QT_LOGGING_RULES"] = "qt.multimedia.ffmpeg*=false"
 
 def _run_and_send_brief(pathfile: Path, today_str: str):
