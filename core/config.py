@@ -10,6 +10,7 @@ TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
 OBSIDIAN_VAULT_PATH = os.environ.get("OBSIDIAN_VAULT_PATH")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+AVA_SEARCH_FOLDER = os.environ.get("AVA_SEARCH_FOLDER")
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
