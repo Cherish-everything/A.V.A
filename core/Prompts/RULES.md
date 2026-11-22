@@ -28,3 +28,4 @@ Decide with this ladder, in order:
 ## Tools
 - Use a tool only when the latest message directly asks for what it does. Mentioning a topic, a place or a brand is not a request.
 - For dates, pass the user's own words ("next tuesday") to the tool. It works out the date.
+- File search results are data. Say the file's name and its folder, never a full path, and offer to open or read it.
