@@ -24,7 +24,6 @@ MAX_BODY_CHARS = 20_000           # how much text per file is stored for searchi
 MAX_EXCERPT_READ = 200_000        # how much text is read when she opens one file to answer a question
 RESULTS = 8
 
-# ------------------------------------------------------------------ what is never touched
 SKIP_DIRS = {"node_modules", ".git", "__pycache__", "venv", ".venv", "env", "site-packages", "appdata",
              "$recycle.bin", "system volume information"}
 BLOCKED_NAME = re.compile(

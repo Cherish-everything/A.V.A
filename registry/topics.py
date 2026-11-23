@@ -38,6 +38,9 @@ TOPICS = {
         r"looking at|watching|reading|working on|clipboard|copied|selected|highlighted|what am i|"
         r"summari[sz]e this|explain this|read this|fix this|what'?s this|what is this)\b"
     ),
+    "docs": (
+        r"\b(?:google\s*docs?|gdocs?|docs?|documents?|write|draft|outline|notes|summary|report|append|add to)\b"
+    )
 }
 
 _COMPILED = {name: re.compile(pattern, re.I) for name, pattern in TOPICS.items()}
