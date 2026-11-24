@@ -5,7 +5,8 @@ from core.config import NVIDIA_API_KEY, GROQ_API_KEY
 # CHANGE IT TO NVIDIA
 
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1"
-NEMOTRON = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+CHAT_MODEL = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+SMART_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
  
 # Same fallback for every Nemotron tier: if NVIDIA is down, rate-limited or slow, the reply still happens on Groq.
 _GROQ_CHAT = {"provider": "groq", "model": "openai/gpt-oss-20b", "temperature": 0.5,
@@ -15,12 +16,16 @@ TIERS = {
     # quick jobs (is this email important? extract a memory fact): small and fast
     "fast": {"provider": "groq", "model": "openai/gpt-oss-20b", "temperature": 0.1, "max_tokens": 256,
              "extra_body": {"reasoning_effort": "low"}},
-    "chat": {"provider": "groq", "model": "openai/gpt-oss-20b", "temperature": 0.7, "max_tokens": 512},
+    "chat": {"provider": "nvidia", "model": CHAT_MODEL, "temperature": 0.4, "max_tokens": 1024,
+             "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
+             "fallback": _GROQ_CHAT},
     # hard problems and scripts: Nemotron with thinking ON (give it room: reasoning tokens count against max_tokens)
-    "smart": {"provider": "nvidia", "model": NEMOTRON, "temperature": 0.6, "top_p": 0.95, "max_tokens": 8192,
+    "smart": {"provider": "nvidia", "model": SMART_MODEL, "temperature": 0.6, "top_p": 0.95, "max_tokens": 8192,
               "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
               "fallback": _GROQ_CHAT},
 }
+
+# openai/gpt-oss-20b
  
 _clients = {}
  

@@ -7,7 +7,7 @@ import requests
 from core.config import TAVILY_API_KEY
 
 @tool(scope="web.search", risk="read")
-def basic_web_search(query: str, news: bool = False) -> dict:
+def web_search(query: str, news: bool = False, research: bool = False) -> dict:
     """Quick web search for current facts. Set news=True for recent news.
     Returns a short answer plus a few sources."""
     if not TAVILY_API_KEY:
@@ -17,8 +17,8 @@ def basic_web_search(query: str, news: bool = False) -> dict:
         client = TavilyClient(api_key=TAVILY_API_KEY)
         response = client.search(
             query=query,
-            search_depth="basic",       # "advanced" is slower and costs 2 credits instead of 1
-            max_results=3,              # fewer results = fewer tokens
+            search_depth="advanced" if research else "basic",       # "advanced" is slower and costs 2 credits instead of 1
+            max_results=10 if research else 3,              # fewer results = fewer tokens
             include_answer=True,        # Tavily writes a short summary for you
             include_raw_content=False,  # skip the full page text (this is the big one)
             include_images=False,
