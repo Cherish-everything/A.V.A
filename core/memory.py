@@ -9,12 +9,12 @@ from pathlib import Path
 import chromadb
 from chromadb.config import Settings
 
-from core.config import LOG_DIR
+from core.config import AVA_VAULT, LOG_DIR
 from registry.registry import tool
 
 CHAT_HISTORY = os.path.join(LOG_DIR, "chat_history.jsonl")
-MEMORY = os.path.join(LOG_DIR, "MEMORY.md")
-ARCHIVE = os.path.join(LOG_DIR, "MEMORY_ARCHIVE.md")
+MEMORY = os.path.join(AVA_VAULT, "MEMORY.md")
+ARCHIVE = os.path.join(AVA_VAULT, "MEMORY_ARCHIVE.md")
 CHROMA_DIR = os.path.join(LOG_DIR, "memory_index")
 
 # Cosine distance: 0 = identical meaning, ~1 = unrelated. Tune both with debug("some message").
@@ -214,7 +214,7 @@ def memory_write(fact):
         except Exception as e:
             _log("duplicate check skipped:", e)
         new_file = not os.path.exists(MEMORY)
-        os.makedirs(LOG_DIR, exist_ok=True)
+        os.makedirs(AVA_VAULT, exist_ok=True)
         with open(MEMORY, "a", encoding="utf-8") as f:
             if new_file:
                 f.write("# Long-Term Memory & Facts\n\n")
@@ -236,7 +236,7 @@ def _norm(text):
 
 def _archive(action, old, new=None):
     """Logs every change with a timestamp. To undo one, copy the old line back into MEMORY.md."""
-    os.makedirs(LOG_DIR, exist_ok=True)
+    os.makedirs(AVA_VAULT, exist_ok=True)
     line = f"- [{time.strftime('%Y-%m-%d %H:%M')}] {action}: {old}" + (f"  ->  {new}" if new else "")
     with open(ARCHIVE, "a", encoding="utf-8") as f:
         f.write(line + "\n")

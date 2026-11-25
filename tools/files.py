@@ -56,17 +56,6 @@ _PDF_OK = importlib.util.find_spec("pypdf") is not None
 _STOP = {"the", "a", "an", "my", "me", "i", "of", "to", "for", "in", "on", "file", "files", "document", "documents",
          "folder", "find", "search", "look", "looking", "open", "show", "that", "this", "about", "please", "where",
          "is", "was", "did", "do", "can", "you", "it", "and", "with", "from", "had", "have", "saved", "wrote"}
-
-
-def _tool(scope, risk, topic="files", triggers=()):
-    """@tool, tolerant of a registry that doesn't know `topic` / `triggers` yet."""
-    for extra in ({"triggers": triggers, "topic": topic}, {"triggers": triggers}, {}):
-        try:
-            return tool(scope=scope, risk=risk, **extra)
-        except TypeError:
-            continue
-
-
 # ------------------------------------------------------------------ which folders she may search
 _roots_cache = {"key": None, "when": 0.0, "roots": []}
 
@@ -474,7 +463,7 @@ def _resolve(file):
 
 
 # ------------------------------------------------------------------ the tools
-@_tool(scope="files.read", risk="read")
+@tool(scope="files.read", risk="read")
 def find_files(query: str = "", kind: str = "", days: int = 0, folder: str = "") -> dict:
     """Search the user's documents and downloads, including subfolders, by file name AND by what is inside
     documents. query is a few keywords ("mext essay", "robotics scholarship"). Optional: kind (pdf, document,
@@ -534,7 +523,7 @@ def find_files(query: str = "", kind: str = "", days: int = 0, folder: str = "")
     return out
 
 
-@_tool(scope="files.read", risk="read")
+@tool(scope="files.read", risk="read")
 def recent_files(days: int = 7, kind: str = "", folder: str = "", limit: int = RESULTS) -> dict:
     """The newest files in the user's documents and downloads, newest first ("what did I download today",
     "my latest PDF"). Scans live, so a file saved a second ago appears. Optional: kind (pdf, image, document...)
@@ -569,7 +558,7 @@ def recent_files(days: int = 7, kind: str = "", folder: str = "", limit: int = R
     return {"count": len(results), "results": results, "warning": DATA_WARNING}
 
 
-@_tool(scope="files.read", risk="read")
+@tool(scope="files.read", risk="read")
 def read_file_excerpt(file: str, query: str = "", max_chars: int = 3000) -> dict:
     """Read part of one file (pass the numeric id from a search OR the exact filename like 'study_plan.txt'). With a query, you get the passages
     that mention it; without, the start of the file. Use it to answer questions about a file or summarise it."""
@@ -615,7 +604,7 @@ def read_file_excerpt(file: str, query: str = "", max_chars: int = 3000) -> dict
     return out
 
 
-@_tool(scope="files.open", risk="additive", triggers=("open", "show", "pull up", "launch", "view", "reveal", "bring up"))
+@tool(scope="files.open", risk="additive")
 def open_file(file: str, reveal: bool = False) -> dict:
     """Open one file in its normal app (use the id from a search), or with reveal=True show it in its folder.
     Programs and scripts are never opened."""

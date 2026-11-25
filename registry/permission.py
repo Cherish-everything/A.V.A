@@ -23,7 +23,6 @@ class Grant:
         return "*" in self.scopes or scope in self.scopes
 
 
-# Chat can use everything ("*"). Scripts get a small, explicit set per run.
 CHAT_GRANT = Grant("chat", {"*"})
 
 

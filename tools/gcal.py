@@ -12,16 +12,6 @@ from registry.registry import tool
 ACCOUNTS = ("personal", "business")
 DAY_START, DAY_END = "08:00", "22:00"                     # the window used to look for free time
 
-
-def _tool(scope, risk, triggers=(), topic=""):
-    """@tool, tolerant of a registry that doesn't know `triggers` / `topic` yet (it just sends the tool always)."""
-    for extra in ({"triggers": triggers, "topic": topic}, {"triggers": triggers}, {}):
-        try:
-            return tool(scope=scope, risk=risk, **extra)
-        except TypeError:
-            continue
-
-
 # =====================================================================
 # Helpers
 # =====================================================================
@@ -84,7 +74,7 @@ def get_active_tasks(target_date=None, account_type="personal") -> list:
     return [t for t in items if (t.get("due") or "")[:10] == day.isoformat()]
 
 
-@_tool(scope="calendar.read", risk="read", topic="calendar")
+@tool(scope="calendar.read", risk="read")
 def get_agenda_for_date(date_query: str = "today", from_time: str = DAY_START, to_time: str = DAY_END) -> dict:
     """What's on and when the user is FREE on one day, across both their calendars, plus tasks due that day.
     date_query is the user's own words ("tomorrow", "next tuesday", "20 nov") or an ISO date: the code works
@@ -131,7 +121,7 @@ def get_agenda_for_date(date_query: str = "today", from_time: str = DAY_START, t
     return out
 
 
-@_tool(scope="tasks.read", risk="read", topic="tasks")
+@tool(scope="tasks.read", risk="read")
 def view_active_tasks(due: str = "", account_type: str = "any") -> dict:
     """The user's open tasks, soonest due first. Put a day in `due` (words or ISO date) to see only the
     tasks due then; leave it empty for all open tasks."""
@@ -211,7 +201,7 @@ def _describe(s, e, tz_name):
     return out
 
 
-@_tool(scope="calendar.read", risk="read", topic="calendar")
+@tool(scope="calendar.read", risk="read")
 def check_availability(day: str = "today", start: str = "", end: str = "", timezone: str = "") -> dict:
     """Is the user free at a SPECIFIC time? Use for "am I free at 3pm tomorrow", "can I do 9am new york time
     on friday". day is the user's words or an ISO date; start and end are clock times like "9am" or "15:00"
@@ -265,9 +255,7 @@ def check_availability(day: str = "today", start: str = "", end: str = "", timez
     return out
 
 
-@_tool(scope="calendar.create", risk="additive", topic="calendar",
-       triggers=("schedule", "calendar", "meeting", "event", "book", "appointment", "remind", "add", "put",
-                 "block", "set up", "plan", "invite"))
+@tool(scope="calendar.create", risk="additive")
 def create_google_calendar_event(title: str, day: str = "today", start: str = "", end: str = "",
                                  notes: str = "", account_type: str = "personal", timezone: str = "") -> dict:
     """Add an event to the user's calendar. day is their words ("tomorrow", "next tuesday", "20 nov") or an
@@ -314,8 +302,7 @@ def create_google_calendar_event(title: str, day: str = "today", start: str = ""
         out["overlaps_with"] = overlaps
     return out
 
-@_tool(scope="calendar.update", risk="additive", topic="calendar",
-       triggers=("cancel", "call off", "postpone", "drop", "scrap", "remove event", "delete event"))
+@tool(scope="calendar.update", risk="additive")
 def cancel_google_calendar_event(event_query: str, day: str = "today", account_type: str = "any") -> dict:
     """Marks an existing calendar event as [CANCELLED] and frees up the time slot without deleting it.
     event_query is words from the event's title. day is the user's words ('today', 'tomorrow', 'friday')
@@ -373,8 +360,7 @@ def cancel_google_calendar_event(event_query: str, day: str = "today", account_t
         "account": account,
     }
 
-@_tool(scope="tasks.create", risk="additive", topic="tasks",
-       triggers=("task", "todo", "to-do", "remind", "reminder", "add", "note", "don't forget", "dont forget"))
+@tool(scope="tasks.create", risk="additive")
 def add_google_task(title: str, due: str = "", notes: str = "", account_type: str = "personal") -> dict:
     """Add a task to the user's to-do list. due is optional: their words ("friday", "20 nov") or an ISO date.
     account_type is "personal" or "business"."""
@@ -398,8 +384,7 @@ def add_google_task(title: str, due: str = "", notes: str = "", account_type: st
     return {"ok": True, "added": result.get("title", body["title"]), "due": (body.get("due") or "")[:10] or None}
 
 
-@_tool(scope="tasks.complete", risk="additive", topic="tasks",
-       triggers=("done", "finished", "finish", "complete", "completed", "tick off", "check off", "cross off", "mark"))
+@tool(scope="tasks.complete", risk="additive")
 def complete_google_task(task: str, account_type: str = "any") -> dict:
     """Mark ONE open task as done. task is some words from its title. If several tasks match, it returns the
     list so you can ask the user which one they mean."""

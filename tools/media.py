@@ -10,7 +10,7 @@ import yt_dlp
 from registry.registry import tool
 
 
-@tool(scope="media.spotify", risk="additive", triggers=("play", "music", "song", "spotify", "listen", "put on", "queue"))
+@tool(scope="media.spotify", risk="additive")
 def play_spotify(song_or_artist: str) -> dict:
     """Plays a song or artist on Spotify. Use when the user asks to play music."""
     url_safe_song = urllib.parse.quote(song_or_artist)
@@ -45,9 +45,7 @@ def _pick(entries, kind):
     return entries[0]
 
 
-@tool(scope="media.youtube", risk="additive",
-      triggers=("play", "watch", "youtube", "documentary", "playlist", "mood", "music", "listen",
-                "put on", "vibe", "sth", "something to", "mix"))
+@tool(scope="media.youtube", risk="additive")
 def play_youtube(genre_or_topic: str, kind: str = "playlist") -> dict:
     """Plays something on YouTube. Use kind="playlist" for a mood, genre or vibe ("something chill",
     "late night writing music"). Use kind="documentary" for a topic to learn about ("bioinformatics").

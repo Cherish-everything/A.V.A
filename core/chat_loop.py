@@ -11,19 +11,22 @@ from registry.permission import CHAT_GRANT, schemas_for
 
 def clean_reply(text: str) -> str:
     text = strip_thinking(text)                                      # no <think> / </think> leftovers
+    if "|" in text or "---" in text:
+        return text.strip()
     text = re.sub(r"\*+|`+", "", text)                               # **bold**, `code`
     text = re.sub(r"^\s*#+\s*", "", text, flags=re.M)                # # headings
     text = re.sub(r"^\s*(\d+[.)]|[-•])\s+", "", text, flags=re.M)    # list markers
     return re.sub(r"\n{2,}", "\n", text).strip()
 
 
-WANTS_DETAIL = ("detail", "explain", "in depth", "full list", "all of", "step by step", "tell me", "is nice", "sounds great")
+WANTS_DETAIL = (
+    "detail", "explain", "in depth", "full list", "all of", "step by step", 
+    "tell me", "is nice", "sounds great", "table", "bom", "list", "links", "prices"
+)
 
 
 def shorten_if_needed(text, user_prompt, tier):
-    if tier == "smart" or len(text.split()) <= 45:
-        return text
-    if any(w in user_prompt.lower() for w in WANTS_DETAIL):    # the user asked for the long version
+    if tier == "smart" or len(text.split()) <= 45 or any(w in user_prompt.lower() for w in WANTS_DETAIL):
         return text
     resp = chat([
         {"role": "system", "content":
@@ -33,28 +36,6 @@ def shorten_if_needed(text, user_prompt, tier):
         {"role": "user", "content": f"User said: {user_prompt}\n\nReply to shorten:\n{text}"},
     ], tier="fast")
     return strip_thinking(resp.choices[0].message.content or text)
-
-
-def _guard(name, user_prompt, history):
-    t = TOOLS.get(name)
-    if not t or not getattr(t, "triggers", None):
-        return None
-    
-    last_offer = history[-1]["content"] if history and history[-1].get("role") == "assistant" else ""
-    text = f"{last_offer} {user_prompt}".lower()
-    
-    affirmatives = ("sure", "yes", "yeah", "yep", "do it", "okay", "ok")
-    user_agreed = user_prompt.strip().lower() in affirmatives
-    
-    if user_agreed and last_offer:
-        if any(w in last_offer.lower() for w in t.triggers):
-            return None
-
-    if any(w in text for w in t.triggers):
-        return None
-        
-    print(f"[guard] blocked {name}: the user didn't ask for it")
-    return {"role": "system", "content": "Tool call failed because you violated a rule or User didn't ask for it. Fix it and try a different approach."}
 
 
 def reply(user_prompt, history, memory_text="", cancelled=lambda: False):
@@ -75,16 +56,17 @@ def reply(user_prompt, history, memory_text="", cancelled=lambda: False):
     ]
     schemas = schemas_for(CHAT_GRANT)
 
-    for _ in range(6):
+    # Increased limit from 6 to 10 for multi-step workflows (web search -> find note -> append)
+    for _ in range(10):
         if cancelled():
             return None
         msg = chat(messages, tools=schemas, tier=tier).choices[0].message
         print(tier)
         if cancelled():
             return None
+            
         if not msg.tool_calls:
             final = strip_thinking(msg.content or "") or "(no reply)"
-            # 3. Run the reply through shorten -> clean -> lint_fix before returning
             return lint_fix(clean_reply(shorten_if_needed(final, user_prompt, tier)))
 
         messages.append(msg)
@@ -99,14 +81,20 @@ def reply(user_prompt, history, memory_text="", cancelled=lambda: False):
             except json.JSONDecodeError:
                 args = {}
                 
-            result = _guard(name, user_prompt, history)
-            if result is None:
+            # Execute tool directly via broker without rigid regex guards
+            try:
                 result = broker.call(name, args, CHAT_GRANT)
+            except Exception as e:
+                result = {"error": f"Tool execution failed: {str(e)}"}
+                
             if name == "think_harder":
                 tier = "smart"
                 
-            messages.append({"role": "tool", "tool_call_id": call.id, "name": name,
-                             "content": json.dumps({"result": result,
-                                                    "reminder": "Answer in 1-2 short sentences."}, default=str)})
+            messages.append({
+                "role": "tool", 
+                "tool_call_id": call.id, 
+                "name": name,
+                "content": json.dumps({"result": result}, default=str)
+            })
 
     return lint_fix("I got stuck in a loop, try rephrasing.")

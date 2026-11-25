@@ -15,10 +15,10 @@ class Tool:
     risk: str
     triggers: tuple = ()
 
-def tool(scope, risk="read", triggers=()):
+def tool(scope, risk="read"):
     def wrap(fn):
         TOOLS[fn.__name__] = Tool(name=fn.__name__, fn=fn, description=inspect.getdoc(fn) or "",
-                                  scope=scope, risk=risk, triggers=tuple(triggers))
+                                  scope=scope, risk=risk)
         return fn
     return wrap
 

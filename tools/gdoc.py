@@ -15,15 +15,6 @@ READ_CHARS = 12_000
 ALLOWED_REQUESTS = {"insertText", "updateParagraphStyle", "deleteParagraphBullets", "createParagraphBullets"}
 
 _folder_ids = {}
-
-def _tool(scope, risk, topic="docs", triggers=()):
-    """@tool, tolerant of a registry that doesn't know `topic` / `triggers` yet."""
-    for extra in ({"triggers": triggers, "topic": topic}, {"triggers": triggers}, {}):
-        try:
-            return tool(scope=scope, risk=risk, **extra)
-        except TypeError:
-            continue
-
 # set up ===============================================================================
 
 def _services(account):
@@ -187,8 +178,7 @@ def _write(docs, doc_id, markdown):
 
 
 # tools ====================================================================================
-@_tool(scope="docs.create", risk="additive",
-       triggers=("doc", "docs", "document", "write", "draft", "outline", "notes", "summary", "report", "plan"))
+@tool(scope="docs.create", risk="additive")
 def create_google_doc(title: str, content: str = "", account_type: str = "personal") -> dict:
     """Create a NEW Google Doc. content is optional and may use simple markdown: "# Heading", "## Subheading",
     "- bullet". It is saved in the user's "A.V.A" folder. I can only create new documents; I can never open
@@ -211,7 +201,7 @@ def create_google_doc(title: str, content: str = "", account_type: str = "person
         return {"error": _friendly(e)}
 
 
-@_tool(scope="docs.read", risk="read")
+@tool(scope="docs.read", risk="read")
 def read_google_doc(doc: str = "", account_type: str = "personal") -> dict:
     """Read a Google Doc that A.V.A created. doc is its id or some words from its title. Leave doc empty to list
     the documents I've made, newest first. I can only read documents I created myself."""
@@ -239,8 +229,7 @@ def read_google_doc(doc: str = "", account_type: str = "personal") -> dict:
         return {"error": _friendly(e)}
 
 
-@_tool(scope="docs.append", risk="additive",
-       triggers=("add", "append", "doc", "docs", "document", "update", "write", "continue"))
+@tool(scope="docs.append", risk="additive")
 def append_to_google_doc(doc: str, content: str, account_type: str = "personal") -> dict:
     """Add text to the END of a Google Doc that A.V.A created (doc is its id or words from its title).
     content may use simple markdown ("# Heading", "- bullet"). Nothing already in the document is changed or
