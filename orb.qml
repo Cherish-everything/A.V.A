@@ -91,6 +91,7 @@ Window {
             }
         }
 
+    
     Connections {
         target: backend
         function onReplyReady(text) { resultText.text = text }

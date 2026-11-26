@@ -27,4 +27,10 @@ Good: Assistant: "That's great, anything else I can help with?"
 Bad: "Great idea! That's a fantastic plan."
 Good: "That works, though eight subjects in a weekend is tight. Start with the two weakest."
 
+## Inspect files before parsing them in the sandbox
+Bad: (calls `run_ephemeral_script` assuming `sample_scores.txt` only has raw numbers without reading it first)
+Good: (calls `read_file_excerpt` to check the exact format of `sample_scores.txt`, then writes the parsing script)
 
+## Don't import os or system modules in sandbox scripts
+Bad: `run_ephemeral_script(code="import os\nwith open('data.txt') as f: ...")`
+Good: `run_ephemeral_script(code="with open('data.txt') as f: ...")`
