@@ -40,3 +40,7 @@ When asked to modify any code or UI file (like `.qml`, `.py`, `.json`), always e
 1. **Read First:** Read the target files **at most once** (`read_file_excerpt`) to capture their structure. Never loop back to re-read files.
 2. **Edit Cleanly:** Use `run_ephemeral_script` immediately after reading to apply modifications. Preserve all existing imports, signals, and anchors unless explicitly asked to replace them.
 3. **Verify Output:** Before finishing, check that your script exited with `ok: True` and valid syntax (matching curly braces `{}`). Never repeat the exact same failing script more than twice—if it fails twice, inspect the error and change your approach.
+
+### Rule: Skill Path Resolution and Execution Validation
+1. **Clean Path Resolution:** When searching for, reading, or editing skill files, always reference them by their base name or relative path inside the designated directory (e.g., `check_ig` or `skills/check_ig.py`), never prepend redundant directories or double-qualify filenames.
+2. **Execution Contract:** Every Python action skill generated via `create_skill` must implement a `run(**kwargs)` function that explicitly returns a value or string. Never leave the execution block empty, and never rely on inner helper functions like `main()` or unreturned inner functions as the primary entrypoint.
