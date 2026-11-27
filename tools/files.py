@@ -550,48 +550,28 @@ def recent_files(days: int = 7, kind: str = "", folder: str = "", limit: int = R
 
 
 @tool(scope="files.read", risk="read")
-def read_file_excerpt(file: str, query: str = "", max_chars: int = 3000) -> dict:
-    """Read part of one file (pass the numeric id or filename)."""
+def read_file_excerpt(file: str, max_chars: int = 3000, offset: int = 0) -> dict:
+    """Read part of one file with an optional character offset."""
     try:
         path = _resolve(file)
         text = _extract(path, MAX_EXCERPT_READ)
-    except ValueError as e:
-        return {"error": str(e)}
-    except ImportError:
-        return {"error": "I can't read PDFs yet. Run: pip install pypdf"}
     except Exception as e:
         return {"error": f"I couldn't read that file: {type(e).__name__}"}
+    
     if text is None:
-        return {"error": "That kind of file has no text I can read (an image, video or program, for example)."}
-    if not text.strip():
-        return {"error": "No readable text in it. If it's a scanned PDF, it's only images."}
+        return {"error": "That kind of file has no readable text."}
 
+    start = max(0, int(offset))
     max_chars = max(500, min(int(max_chars), 6000))
-    toks = _tokens(query)
-    if toks:
-        lowered, spots = text.lower(), []
-        for t in toks:
-            spots += [m.start() for m in re.finditer(re.escape(t), lowered)][:20]
-        spots.sort()
-        windows, last_end = [], -1
-        for s in spots:
-            start = max(0, s - 250)
-            if start < last_end:
-                continue
-            windows.append(text[start:start + 700])
-            last_end = start + 700
-            if len(windows) == 3:
-                break
-        excerpt = " ... ".join(w.strip() for w in windows) if windows else text[:max_chars]
-        found = bool(windows)
-    else:
-        excerpt, found = text[:max_chars], True
-    excerpt = _redact(re.sub(r"[ \t]+", " ", excerpt))[:max_chars]
-    out = {"name": os.path.basename(path), "where": _where(path), "excerpt": excerpt,
-           "truncated": len(text) >= MAX_EXCERPT_READ or len(excerpt) >= max_chars, "warning": DATA_WARNING}
-    if toks and not found:
-        out["note"] = "Your keywords weren't in the text, so this is the start of the file."
-    return out
+    excerpt = text[start : start + max_chars]
+    
+    return {
+        "name": os.path.basename(path), 
+        "where": _where(path), 
+        "excerpt": excerpt,
+        "truncated": (start + max_chars) < len(text),
+        "warning": DATA_WARNING
+    }
 
 
 @tool(scope="files.open", risk="additive")

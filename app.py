@@ -6,6 +6,7 @@ from pathlib import Path
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import QQmlApplicationEngine
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
+from PyQt6.QtQuickControls2 import QQuickStyle
 from core import reply, Speaker, chat_log_write, memory_context, load_history, warm_up, remember_from_conversation
 from core import clean_chat_log, chat, today, LOG_DIR
 from tools import load_all_tools, generate_image, get_agenda_for_date, push_briefing_to_telegram, start_telegram
@@ -46,6 +47,7 @@ class BackendProcessor(QObject):
     """Bridge between the QML window and the A.V.A core."""
 
     replyReady = pyqtSignal(str)
+    levelChanged = pyqtSignal(float)
 
     def __init__(self, speaker):
         super().__init__()
@@ -54,6 +56,7 @@ class BackendProcessor(QObject):
         self._turn = 0 #inc on every new message
         self._lock = threading.Lock() #locked each time
         speaker.textReady.connect(self.replyReady)
+        speaker.levelChanged.connect(self.levelChanged)
         threading.Thread(target=lambda: chat([{"role": "user", "content": "hi"}], tier="fast", max_tokens=5), daemon=True).start()
 
     @pyqtSlot(str)                           
@@ -91,6 +94,7 @@ class BackendProcessor(QObject):
 
 
 if __name__ == "__main__":
+    QQuickStyle.setStyle("Fusion")
     load_all_tools()          
     threading.Thread(target=warm_up, daemon=True).start()   
     threading.Thread(target=clean_chat_log, daemon=True).start() 
@@ -102,7 +106,7 @@ if __name__ == "__main__":
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("backend", backend)
 
-    engine.load(str(Path(__file__).parent / "orb.qml"))
+    engine.load(str(Path(__file__).parent / "test.qml"))
     if not engine.rootObjects():
         sys.exit(-1)
 

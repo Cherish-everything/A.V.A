@@ -1,10 +1,15 @@
 import ast
 import shutil
+import io
+import mimetypes
+import base64
+
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from registry.registry import tool
+from core.llm import chat, strip_thinking
 
 MAX_OUTPUT = 4000
 SANDBOX_DIR = Path(__file__).parent.parent / "ava_sandbox"
@@ -27,7 +32,95 @@ def _validate_safe_ast(code: str):
             if node.func.id in BLOCKED_CALLS:
                 raise PermissionError(f"Blocked built-in call: '{node.func.id}()'")
 
+EDITABLE = {".qml", ".py", ".txt", ".md", ".json", ".html", ".csv", ".js", ".css"}
 
+def _sb_path(filename: str) -> Path:
+    p = SANDBOX_DIR / Path(filename).name
+    if p.suffix.lower() not in EDITABLE:
+        raise ValueError(f"Can't edit {p.suffix} files.")
+    return p
+
+IMG_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+
+def _image_data_url(path: Path) -> str:
+    try:
+        from PIL import Image
+        img = Image.open(path).convert("RGB")
+        img.thumbnail((1024, 1024))            # keeps the upload small
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=80)
+        data, mime = buf.getvalue(), "image/jpeg"
+    except ImportError:
+        data, mime = path.read_bytes(), mimetypes.guess_type(path.name)[0] or "image/png"
+    return f"data:{mime};base64,{base64.b64encode(data).decode()}"
+
+@tool(scope="sandbox.read", risk="read")
+def describe_sandbox_image(filename: str, focus: str = "") -> dict:
+    """Look at an image in ava_sandbox (a reference screenshot or mockup) and get a detailed description to build from."""
+    try:
+        p = SANDBOX_DIR / Path(filename).name
+        if p.suffix.lower() not in IMG_EXTS:
+            return {"error": "Only png, jpg, jpeg and webp images are supported."}
+        if not p.exists():
+            return {"error": f"'{p.name}' not found in ava_sandbox."}
+        prompt = ("Describe this image for a developer who has to recreate it in QML: layout, shapes, "
+                  "proportions, colors (hex estimates), gradients, glow and shadow effects, spacing, and any text. "
+                  "Be concrete and structured."
+                  + (f" Focus on: {focus}" if focus else ""))
+        resp = chat([{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": _image_data_url(p)}},
+        ]}], tier="chat", max_tokens=3000)
+        text = strip_thinking(resp.choices[0].message.content or "")
+        return {"name": p.name, "description": text or "The vision model returned nothing."}
+    except Exception as e:
+        return {"error": f"Couldn't read the image: {type(e).__name__}: {e}"}
+
+@tool(scope="sandbox.run", risk="read")
+def read_sandbox_file(filename: str, offset: int = 0, max_chars: int = 20000) -> dict:
+    """Read a file from ava_sandbox in full (up to 20k chars per call)."""
+    try:
+        p = _sb_path(filename)
+        if not p.exists():
+            return {"error": f"'{p.name}' not found in ava_sandbox."}
+        text = p.read_bytes().decode("utf-8", errors="replace").replace("\r\n", "\n")
+        return {"name": p.name, "total_chars": len(text),
+                "content": text[offset:offset + max_chars],
+                "truncated": offset + max_chars < len(text)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@tool(scope="sandbox.run", risk="additive")
+def edit_sandbox_file(filename: str, old: str, new: str) -> dict:
+    """Replace one exact, unique block of text in an ava_sandbox file. Prefer this over rewriting the whole file."""
+    try:
+        p = _sb_path(filename)
+        raw = p.read_bytes().decode("utf-8")
+        crlf = "\r\n" in raw
+        text = raw.replace("\r\n", "\n")
+        n = text.count(old)
+        if n != 1:
+            return {"error": f"'old' must match exactly once, matched {n} times. Re-read the file and copy it exactly."}
+        shutil.copy2(p, p.with_suffix(p.suffix + ".bak"))
+        text = text.replace(old, new)
+        p.write_bytes((text.replace("\n", "\r\n") if crlf else text).encode("utf-8"))
+        return {"ok": True, "file": p.name, "backup": p.name + ".bak"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@tool(scope="sandbox.run", risk="additive")
+def write_sandbox_file(filename: str, content: str) -> dict:
+    """Create or fully overwrite a file in ava_sandbox (keeps a .bak of the old one)."""
+    try:
+        p = _sb_path(filename)
+        SANDBOX_DIR.mkdir(exist_ok=True)
+        if p.exists():
+            shutil.copy2(p, p.with_suffix(p.suffix + ".bak"))
+        p.write_text(content, encoding="utf-8")
+        return {"ok": True, "file": p.name, "chars": len(content)}
+    except Exception as e:
+        return {"error": str(e)}
+    
 @tool(scope="sandbox.run", risk="additive")
 def run_ephemeral_script(
     code: str,

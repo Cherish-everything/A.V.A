@@ -16,13 +16,13 @@ TIERS = {
     # quick jobs (is this email important? extract a memory fact): small and fast
     "fast": {"provider": "groq", "model": "openai/gpt-oss-20b", "temperature": 0.1, "max_tokens": 256,
              "extra_body": {"reasoning_effort": "low"}},
-    "chat": {"provider": "nvidia", "model": CHAT_MODEL, "temperature": 0.4, "max_tokens": 1024,
-             "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
-             "fallback": _GROQ_CHAT},
-    # hard problems and scripts: Nemotron with thinking ON (give it room: reasoning tokens count against max_tokens)
-    "smart": {"provider": "nvidia", "model": SMART_MODEL, "temperature": 0.6, "top_p": 0.95, "max_tokens": 8192,
-              "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
-              "fallback": _GROQ_CHAT},
+    "chat": {"provider": "nvidia", "model": CHAT_MODEL, "temperature": 0.4, "max_tokens": 4096,
+         "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
+         "fallback": _GROQ_CHAT},
+    "smart": {"provider": "nvidia", "model": SMART_MODEL, "temperature": 0.6, "top_p": 0.95,
+          "max_tokens": 8192, "timeout": 120,
+          "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
+          "fallback": _GROQ_CHAT},
 }
 
 # openai/gpt-oss-20b

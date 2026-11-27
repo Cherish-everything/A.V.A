@@ -1,6 +1,7 @@
 # core/speech.py
 import asyncio
 import itertools
+import math
 import os
 import queue
 import re
@@ -43,6 +44,7 @@ class Speaker(QObject):
 
     _file_ready = pyqtSignal(str)       # worker thread -> main thread: a clip is ready to play
     textReady = pyqtSignal(str)         # fires when the audio for a reply starts (or if speech fails)
+    levelChanged = pyqtSignal(float)    # emits 0.0-1.0 audio level while playing, 0 when stopped
 
     @property
     def generation(self):
@@ -65,6 +67,9 @@ class Speaker(QObject):
         self._player.setAudioOutput(self._audio)
         self._player.mediaStatusChanged.connect(self._on_status)
         self._file_ready.connect(self._enqueue)
+
+        self._level_timer = None
+        self._level_phase = 0.0
 
         threading.Thread(target=self._feeder, daemon=True).start()
 
@@ -111,6 +116,8 @@ class Speaker(QObject):
         self._playlist.clear()
         self._current = None
         self._busy = False
+        self._stop_level_timer()
+        self.levelChanged.emit(0.0)
 
     # ---------- worker thread: waits for chunks in speaking order ----------
     def _feeder(self):
@@ -143,6 +150,8 @@ class Speaker(QObject):
     def _play_next(self):
         if not self._playlist:
             self._busy = False
+            self._stop_level_timer()
+            self.levelChanged.emit(0.0)
             return
         self._busy = True
         self._current = self._playlist.popleft()
@@ -151,6 +160,7 @@ class Speaker(QObject):
         self._player.play()
         if text:
             self.textReady.emit(text)               # the text appears as the voice begins
+        self._start_level_timer()
 
     def _on_status(self, status):
         finished = (QMediaPlayer.MediaStatus.EndOfMedia, QMediaPlayer.MediaStatus.InvalidMedia)
@@ -163,3 +173,24 @@ class Speaker(QObject):
                 except OSError:
                     pass
             self._play_next()
+
+    def _start_level_timer(self):
+        if self._level_timer is not None:
+            return
+        self._level_phase = 0.0
+        self._level_timer = self.startTimer(50)  # 20Hz updates
+
+    def _stop_level_timer(self):
+        if self._level_timer is not None:
+            self.killTimer(self._level_timer)
+            self._level_timer = None
+
+    def timerEvent(self, event):
+        if event.timerId() == self._level_timer:
+            # Simulate varying audio level (0.3 to 1.0) for visualizer effect
+            import math
+            self._level_phase += 0.3
+            level = 0.3 + 0.7 * (0.5 + 0.5 * math.sin(self._level_phase))
+            self.levelChanged.emit(level)
+        else:
+            super().timerEvent(event)

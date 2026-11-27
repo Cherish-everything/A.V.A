@@ -34,3 +34,9 @@ Decide with this ladder, in order:
 - Always inspect an input file with `read_file_excerpt` first to check its exact format before writing a script to parse it. Never assume raw structure blindly.
 - When using `run_ephemeral_script`, never import `os`, `sys`, `subprocess`, `shutil`, `pathlib`, or network libraries (`requests`, `urllib`). Only use standard data/text libraries (`json`, `csv`, `re`, `math`, `datetime`).
 - Files passed via `input_filename` are copied straight into the current working directory—always open them directly by filename (e.g., `open('data.txt')`).
+
+## Autonomous Code Editing Workflow
+When asked to modify any code or UI file (like `.qml`, `.py`, `.json`), always execute this exact sequence autonomously without asking the user for steps:
+1. **Read First:** Read the target files **at most once** (`read_file_excerpt`) to capture their structure. Never loop back to re-read files.
+2. **Edit Cleanly:** Use `run_ephemeral_script` immediately after reading to apply modifications. Preserve all existing imports, signals, and anchors unless explicitly asked to replace them.
+3. **Verify Output:** Before finishing, check that your script exited with `ok: True` and valid syntax (matching curly braces `{}`). Never repeat the exact same failing script more than twice—if it fails twice, inspect the error and change your approach.
