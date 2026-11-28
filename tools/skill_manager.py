@@ -77,6 +77,15 @@ def execute_skill(skill_name: str, **kwargs) -> str:
     Executes a previously created Python skill from the skills folder by its name.
     Use this when the user asks to run a custom skill or automated workflow.
     """
+    # Unpack if the model passed a literal JSON string under kwargs
+    if "kwargs" in kwargs and isinstance(kwargs["kwargs"], str):
+        try:
+            unpacked = json.loads(kwargs.pop("kwargs"))
+            if isinstance(unpacked, dict):
+                kwargs.update(unpacked)
+        except Exception:
+            pass
+            
     safe_name = "".join(c for c in skill_name if c.isalnum() or c == "_").lower()
     file_path = SKILLS_DIR / f"{safe_name}.py"
 

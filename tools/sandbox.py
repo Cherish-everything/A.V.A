@@ -12,7 +12,7 @@ from registry.registry import tool
 from core.llm import chat, strip_thinking
 
 MAX_OUTPUT = 4000
-SANDBOX_DIR = Path(__file__).parent.parent / "ava_sandbox"
+SANDBOX_DIR = Path(__file__).resolve().parent.parent / "ava_sandbox"
 
 BLOCKED_MODULES = {"os", "sys", "subprocess", "shutil", "pathlib", "socket", "urllib", "requests", "http", "importlib"}
 BLOCKED_CALLS = {"exec", "eval", "compile", "__import__"}

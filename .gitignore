@@ -16,6 +16,7 @@ morning_chronicle.txt
 output/
 Others/
 ava_sandbox/
+*.mp4
 
 
 # virtual environments and caches

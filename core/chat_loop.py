@@ -92,16 +92,24 @@ def reply(user_prompt, history, memory_text="", cancelled=lambda: False, is_afk=
     for _ in range(10):
         if cancelled():
             return None
-        choice = chat(messages, tools=schemas, tier=tier).choices[0]
+            
+        # Call model
+        response = chat(messages, tools=schemas, tier=tier)
+        choice = response.choices[0]
         msg = choice.message
-        print(tier)
+        
+        # --- LIVE THINKING DISPLAY ---
+        if hasattr(msg, "content") and msg.content:
+            if "<think>" in msg.content or "</think>" in msg.content:
+                print(f"\033[90m[A.V.A Thinking]: {strip_thinking(msg.content)}\033[0m", flush=True)
+
         if cancelled():
             return None
 
         if not msg.tool_calls:
             content = strip_thinking(msg.content or "")
             if not content:
-                print("EMPTY REPLY | finish_reason:", choice.finish_reason, "| raw:", repr(msg.content)[:300])
+                print("EMPTY REPLY | finish_reason:", choice.finish_reason)
                 if nudges < 2:
                     nudges += 1
                     messages.append({"role": "user", "content":
@@ -110,7 +118,6 @@ def reply(user_prompt, history, memory_text="", cancelled=lambda: False, is_afk=
                     continue
                 content = "I couldn't finish that. Try breaking it into smaller steps."
             
-            # --- FINAL RESPONSE & TELEGRAM PUSH (Normal Exit) ---
             final_resp = lint_fix(clean_reply(shorten_if_needed(content, user_prompt, tier)))
             if is_afk:
                 push_to_telegram(final_resp)
@@ -121,11 +128,12 @@ def reply(user_prompt, history, memory_text="", cancelled=lambda: False, is_afk=
         for call in msg.tool_calls:
             raw_name = call.function.name
             name = raw_name.split("<|")[0].strip()
-            print(f"Calling {name}")
+            
+            # --- LIVE TOOL CALL DISPLAY ---
+            print(f"\033[36m[Tool Call] Executing -> {name}({call.function.arguments})\033[0m", flush=True)
 
             args_str = call.function.arguments or "{}"
 
-            # --- LOOP BREAKER CHECK ---
             try:
                 normalized_args = json.dumps(json.loads(args_str), sort_keys=True)
             except json.JSONDecodeError:
@@ -137,12 +145,11 @@ def reply(user_prompt, history, memory_text="", cancelled=lambda: False, is_afk=
                     "role": "tool",
                     "tool_call_id": call.id,
                     "name": name,
-                    "content": json.dumps({"error": "Loop detected: You already called this exact tool with these arguments. Change your approach or explain the status to the user."}, default=str)
+                    "content": json.dumps({"error": "Loop detected: You already called this exact tool with these arguments."}, default=str)
                 })
                 continue
 
             seen_calls.add(call_signature)
-            # --------------------------
 
             try:
                 args = json.loads(args_str)
@@ -153,22 +160,6 @@ def reply(user_prompt, history, memory_text="", cancelled=lambda: False, is_afk=
                 result = broker.call(name, args, CHAT_GRANT)
             except Exception as e:
                 result = {"error": f"Tool execution failed: {str(e)}"}
-
-            # Check if the result dictionary signals that it needs human input
-            if isinstance(result, dict) and result.get("status") == "needs_clarification":
-                clarification_prompt = result.get("prompt", "I need your input to continue.")
-                
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": call.id,
-                    "name": name,
-                    "content": json.dumps({"result": result}, default=str)
-                })
-                
-                clarification_resp = lint_fix(clean_reply(clarification_prompt))
-                if is_afk:
-                    push_to_telegram(clarification_resp)
-                return clarification_resp
 
             messages.append({
                 "role": "tool",
