@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.timeutil import today
+from core.chat_loop import reply
 
 OUTPUT_DIR = Path(__file__).parent.parent / "skills" / "output"
 NOTES_FILE = Path(__file__).parent.parent / "logs" / "telegram_notes.txt"
@@ -63,11 +64,34 @@ def push_briefing_to_telegram(image_path: str):
     else:
         print(f"Failed to send Telegram brief: {response.text}")
 
+async def handle_incoming_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text
+    chat_id = update.message.chat_id
+
+    # 1. If the message starts with /note, save it to the notes file as before
+    if user_text.startswith("/note"):
+        note_content = user_text[len("/note"):].strip()
+        NOTES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(NOTES_FILE, 'a', encoding="utf-8") as f:
+            f.write(f"Note:{note_content}\n")
+        await update.message.reply_text(f"Note saved successfully: \"{note_content}\"")
+        return
+
+    # 2. Otherwise, treat it as an incoming prompt for A.V.A (if AFK)
+    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+    
+    # Run A.V.A's reply loop with is_afk=False so it returns the response directly here
+    try:
+        response_text = reply(user_prompt=user_text, history=[], is_afk=False)
+        await update.message.reply_text(response_text, parse_mode="Markdown")
+    except Exception as e:
+        await update.message.reply_text(f"Error processing prompt: {str(e)}")
+
 def start_telegram():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("briefing", send_briefing))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_note))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_incoming_message))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice_note))
 
     print("Telegram running...")

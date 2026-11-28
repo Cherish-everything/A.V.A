@@ -17,6 +17,32 @@ SANDBOX_DIR = Path(__file__).parent.parent / "ava_sandbox"
 BLOCKED_MODULES = {"os", "sys", "subprocess", "shutil", "pathlib", "socket", "urllib", "requests", "http", "importlib"}
 BLOCKED_CALLS = {"exec", "eval", "compile", "__import__"}
 
+from core.config import AVA_VAULT
+
+VAULT_DIR = Path(AVA_VAULT).resolve() if AVA_VAULT else None
+
+def _resolve_target(filename: str, location: str = "sandbox") -> Path:
+    """Resolves a safe path inside either ava_sandbox or AVA_VAULT."""
+    clean_path = str(filename).strip().strip('"').lstrip("/\\")
+    
+    if location == "vault":
+        if not VAULT_DIR or not VAULT_DIR.exists():
+            raise ValueError("AVA_VAULT is not configured or does not exist.")
+        base = VAULT_DIR
+    else:
+        base = SANDBOX_DIR.resolve()
+
+    target = (base / clean_path).resolve()
+
+    # Security check: prevent '../' traversal outside the chosen root
+    if base not in target.parents and target != base:
+        raise PermissionError("Path traversal outside allowed directory is blocked.")
+
+    if target.suffix.lower() not in EDITABLE:
+        raise ValueError(f"Can't edit {target.suffix} files.")
+
+    return target
+
 def _validate_safe_ast(code: str):
     """Inspects the Python syntax tree and blocks dangerous imports or built-ins before execution."""
     tree = ast.parse(code)
@@ -35,7 +61,12 @@ def _validate_safe_ast(code: str):
 EDITABLE = {".qml", ".py", ".txt", ".md", ".json", ".html", ".csv", ".js", ".css"}
 
 def _sb_path(filename: str) -> Path:
-    p = SANDBOX_DIR / Path(filename).name
+    """Resolves a path inside ava_sandbox, preserving subdirectories like skills/."""
+    # Clean up the filename string and prevent path traversal
+    clean_path = str(filename).strip().strip('"').lstrip("/\\")
+    p = SANDBOX_DIR / clean_path
+    
+    # Ensure the file extension is allowed
     if p.suffix.lower() not in EDITABLE:
         raise ValueError(f"Can't edit {p.suffix} files.")
     return p
@@ -77,12 +108,12 @@ def describe_sandbox_image(filename: str, focus: str = "") -> dict:
         return {"error": f"Couldn't read the image: {type(e).__name__}: {e}"}
 
 @tool(scope="sandbox.run", risk="read")
-def read_sandbox_file(filename: str, offset: int = 0, max_chars: int = 20000) -> dict:
-    """Read a file from ava_sandbox in full (up to 20k chars per call)."""
+def read_sandbox_file(filename: str, offset: int = 0, max_chars: int = 20000, location: str = "sandbox") -> dict:
+    """Read a file from ava_sandbox or vault (set location='vault' for Obsidian notes)."""
     try:
-        p = _sb_path(filename)
+        p = _resolve_target(filename, location)
         if not p.exists():
-            return {"error": f"'{p.name}' not found in ava_sandbox."}
+            return {"error": f"'{p.name}' not found in {location}."}
         text = p.read_bytes().decode("utf-8", errors="replace").replace("\r\n", "\n")
         return {"name": p.name, "total_chars": len(text),
                 "content": text[offset:offset + max_chars],
@@ -91,10 +122,10 @@ def read_sandbox_file(filename: str, offset: int = 0, max_chars: int = 20000) ->
         return {"error": str(e)}
 
 @tool(scope="sandbox.run", risk="additive")
-def edit_sandbox_file(filename: str, old: str, new: str) -> dict:
+def edit_sandbox_file(filename: str, old: str, new: str, location: str = "sandbox") -> dict:
     """Replace one exact, unique block of text in an ava_sandbox file. Prefer this over rewriting the whole file."""
     try:
-        p = _sb_path(filename)
+        p = _resolve_target(filename, location)
         raw = p.read_bytes().decode("utf-8")
         crlf = "\r\n" in raw
         text = raw.replace("\r\n", "\n")
@@ -109,10 +140,16 @@ def edit_sandbox_file(filename: str, old: str, new: str) -> dict:
         return {"error": str(e)}
 
 @tool(scope="sandbox.run", risk="additive")
-def write_sandbox_file(filename: str, content: str) -> dict:
-    """Create or fully overwrite a file in ava_sandbox (keeps a .bak of the old one)."""
+def write_sandbox_file(filename: str, content: str, location: str = "sandbox") -> dict:
+    """Create or fully overwrite a file in ava_sandbox or vault (keeps a .bak of the old one)."""
     try:
-        p = _sb_path(filename)
+        p = _resolve_target(filename, location)
+        
+        # Block saving skills directly via sandbox file tools
+        if "skills" in p.parts or "skills" in filename.lower() or "def run(**kwargs)" in content:
+            return {"error": "Error: Skills must be created using the `create_skill` tool, not `write_sandbox_file`."}
+
+        p.parent.mkdir(parents=True, exist_ok=True)
         SANDBOX_DIR.mkdir(exist_ok=True)
         if p.exists():
             shutil.copy2(p, p.with_suffix(p.suffix + ".bak"))

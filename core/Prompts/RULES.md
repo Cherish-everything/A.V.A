@@ -32,7 +32,7 @@ Decide with this ladder, in order:
 
 ## Sandbox & File Rules
 - Always inspect an input file with `read_file_excerpt` first to check its exact format before writing a script to parse it. Never assume raw structure blindly.
-- When using `run_ephemeral_script`, never import `os`, `sys`, `subprocess`, `shutil`, `pathlib`, or network libraries (`requests`, `urllib`). Only use standard data/text libraries (`json`, `csv`, `re`, `math`, `datetime`).
+- When using `run_ephemeral_script`, never import `os`, `sys`, `subprocess`, `shutil`, `pathlib`, or network libraries (`requests`, `urllib`). *(Note: This restriction ONLY applies to `run_ephemeral_script`. Inside `create_skill`, you MUST import and use `requests` and `os` to build real API integrations.)*
 - Files passed via `input_filename` are copied straight into the current working directory—always open them directly by filename (e.g., `open('data.txt')`).
 
 ## Autonomous Code Editing Workflow

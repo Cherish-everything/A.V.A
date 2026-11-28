@@ -1,17 +1,8 @@
 import sys
 import subprocess
-import time
-import shutil
 import platform
 from pathlib import Path
-from datetime import datetime
 from registry.registry import tool
-
-EXTENSIONS = {
-    "Images": {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".heic", ".avif", ".webp"},
-    "Videos": {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv"},
-    "Documents": {".pdf", ".docx", ".doc", ".txt", ".xlsx", ".xls", ".pptx", ".ppt", ".csv", ".md"},
-    }
 
 @tool(scope="system.maintainence", risk="read")
 def system_maintenance() -> str:
@@ -33,72 +24,7 @@ def system_maintenance() -> str:
             return "Target platform architecture unrecognized by security layer."
             
     except Exception as e:
-        return f"Failed to route interface protocols: {str(e)}"\
-        
-@tool(scope="files.organize", risk="read")
-def file_organize(target_path: str = "") -> str:
-    """
-    Safely navigates the downloads folder and sorts files/folders:
-    - Folders and .zip files go into a separate folder called 'Folders'.
-    - Loose files are sorted into Recent/Older folders categorized by extension.
-    """
-    raw_path = r"C:\Users\Cherish\Downloads\test"
-    path = Path(raw_path)
-    
-    if not path.exists():
-        print("Download not found")
-        return "Download folder not found."
-
-    one_month_ago = time.time() - (30 * 24 * 60 * 60) # in seconds
-    current_run_date = datetime.now().strftime("%m-%y")
-    folders_dir_name = "Folders"
-    
-    moved = 0
-
-    for item in path.iterdir():
-        if item.name == folders_dir_name:
-            continue
-
-        # Move folders and .zip into /Folders
-        if item.is_dir() or item.suffix.lower() == ".zip" or item.name.startswith("."):
-            target = path / folders_dir_name
-            target.mkdir(parents=True, exist_ok=True)
-            dest = target / item.name
-            
-            try:
-                if item.resolve() == target.resolve():
-                    continue
-                shutil.move(str(item), str(dest))
-                moved += 1
-            except Exception:
-                pass
-            continue
-
-        # Recent vs Older -> Categories
-        try:
-            file_mod_time = item.stat().st_mtime
-            age_folder = f"Recent Files {current_run_date}" if file_mod_time > one_month_ago else f"Older Files {current_run_date}"
-
-            file_ext = item.suffix.lower()
-            category_folder = "Others"
-            for category, ext_list in EXTENSIONS.items():
-                if file_ext in ext_list:
-                    category_folder = category
-                    break
-
-            target_dir = path / age_folder / category_folder
-            target_dir.mkdir(parents=True, exist_ok=True)
-
-            destination = target_dir / item.name
-            if destination.exists():
-                destination = target_dir / f"{item.stem}_{int(file_mod_time)}{item.suffix}"
-
-            shutil.move(str(item), str(destination))
-            moved += 1
-        except Exception:
-            pass
-
-    return f"Successfully organized. Total items moved: {moved}"
+        return f"Failed to route interface protocols: {str(e)}"
 
 @tool(scope="app.launch", risk="read")
 def launch_system_application(app_name: str) -> str:
